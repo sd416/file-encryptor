@@ -11,8 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
-	"sync"
+	"path/filepath"
 	"time"
 )
 
@@ -34,103 +33,47 @@ func EncryptFile(inputFile, outputFile string, encryptor crypto.Encryptor, logge
 	}
 	defer outFile.Close()
 
-	bufReader := bufio.NewReaderSize(inFile, chunkSize)
 	bufWriter := bufio.NewWriterSize(outFile, chunkSize)
 	defer bufWriter.Flush()
 
+	// Write file extension
+	extension := filepath.Ext(inputFile)
+	if err := writeExtension(bufWriter, extension); err != nil {
+		return fmt.Errorf("error writing file extension: %v", err)
+	}
+
+	// Generate AES key
 	aesKey := make([]byte, 32) // AES-256
 	if _, err := io.ReadFull(rand.Reader, aesKey); err != nil {
 		return fmt.Errorf("error generating AES key: %v", err)
 	}
-	logger.Log("Generated AES key")
 
+	// Encrypt AES key
 	encryptedAESKey, err := encryptor.EncryptKey(aesKey)
 	if err != nil {
 		return fmt.Errorf("error encrypting AES key: %v", err)
 	}
-	logger.Log(fmt.Sprintf("Encrypted AES key (length: %d bytes)", len(encryptedAESKey)))
 
-	if err := binary.Write(bufWriter, binary.BigEndian, uint32(len(encryptedAESKey))); err != nil {
-		return fmt.Errorf("error writing key length: %v", err)
+	// Write encrypted AES key length and key
+	if err := writeLengthAndData(bufWriter, encryptedAESKey); err != nil {
+		return err
 	}
 
-	if _, err := bufWriter.Write(encryptedAESKey); err != nil {
-		return fmt.Errorf("error writing encrypted key: %v", err)
-	}
-	logger.Log("Wrote encrypted AES key to file")
-
-	block, err := aes.NewCipher(aesKey)
-	if err != nil {
-		return fmt.Errorf("error creating AES cipher: %v", err)
-	}
-
+	// Initialize AES encryption
+	block, _ := aes.NewCipher(aesKey)
 	iv := make([]byte, aes.BlockSize)
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
 		return fmt.Errorf("error generating IV: %v", err)
 	}
+	bufWriter.Write(iv)
+	stream := cipher.NewCTR(block, iv)
 
-	if _, err := bufWriter.Write(iv); err != nil {
-		return fmt.Errorf("error writing IV: %v", err)
-	}
-	logger.Log("Wrote IV to file")
-
-	numWorkers := runtime.NumCPU()
-	jobs := make(chan []byte, numWorkers)
-	results := make(chan []byte, numWorkers)
-	errors := make(chan error, 1)
-
-	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func(workerIV []byte) {
-			defer wg.Done()
-			stream := cipher.NewCTR(block, workerIV)
-			for chunk := range jobs {
-				encryptedChunk := make([]byte, len(chunk))
-				stream.XORKeyStream(encryptedChunk, chunk)
-				results <- encryptedChunk
-			}
-		}(incrementIV(iv))
-	}
-
-	go func() {
-		defer close(jobs)
-		for {
-			chunk := make([]byte, chunkSize)
-			n, err := bufReader.Read(chunk)
-			if err != nil {
-				if err != io.EOF {
-					errors <- fmt.Errorf("error reading input file: %v", err)
-				}
-				break
-			}
-			if n == 0 {
-				break
-			}
-			jobs <- chunk[:n]
-		}
-	}()
-
-	go func() {
-		defer close(results)
-		for encryptedChunk := range results {
-			if _, err := bufWriter.Write(encryptedChunk); err != nil {
-				errors <- fmt.Errorf("error writing encrypted data: %v", err)
-				return
-			}
-		}
-	}()
-
-	wg.Wait()
-
-	select {
-	case err := <-errors:
+	// Encrypt file content
+	if err := processFileContent(bufio.NewReader(inFile), bufWriter, stream); err != nil {
 		return err
-	default:
 	}
 
-	duration := time.Since(startTime)
-	logger.Log(fmt.Sprintf("Encryption completed. Duration: %v", duration))
+	logger.Log(fmt.Sprintf("Encryption completed in %v", time.Since(startTime)))
 	return nil
 }
 
@@ -144,116 +87,101 @@ func DecryptFile(inputFile, outputFile string, decryptor crypto.Decryptor, logge
 	}
 	defer inFile.Close()
 
+	bufReader := bufio.NewReaderSize(inFile, chunkSize)
+
+	// Read and restore file extension
+	extension, err := readExtension(bufReader)
+	if err != nil {
+		return err
+	}
+	outputFile += extension
+
 	outFile, err := os.Create(outputFile)
 	if err != nil {
 		return fmt.Errorf("error creating output file: %v", err)
 	}
 	defer outFile.Close()
 
-	bufReader := bufio.NewReaderSize(inFile, chunkSize)
-	bufWriter := bufio.NewWriterSize(outFile, chunkSize)
-	defer bufWriter.Flush()
-
-	var keyLength uint32
-	if err := binary.Read(bufReader, binary.BigEndian, &keyLength); err != nil {
-		return fmt.Errorf("error reading key length: %v", err)
+	// Read encrypted AES key
+	encryptedAESKey, err := readLengthAndData(bufReader)
+	if err != nil {
+		return err
 	}
-	logger.Log(fmt.Sprintf("Read encrypted AES key length: %d bytes", keyLength))
 
-	encryptedAESKey := make([]byte, keyLength)
-	if _, err := io.ReadFull(bufReader, encryptedAESKey); err != nil {
-		return fmt.Errorf("error reading encrypted key: %v", err)
-	}
-	logger.Log(fmt.Sprintf("Read encrypted AES key (%d bytes)", len(encryptedAESKey)))
-
+	// Decrypt AES key
 	aesKey, err := decryptor.DecryptKey(encryptedAESKey)
 	if err != nil {
 		return fmt.Errorf("error decrypting AES key: %v", err)
 	}
-	if len(aesKey) != 32 {
-		return fmt.Errorf("decrypted AES key has incorrect length: %d (expected 32)", len(aesKey))
-	}
-	logger.Log("Successfully decrypted AES key")
 
-	block, err := aes.NewCipher(aesKey)
-	if err != nil {
-		return fmt.Errorf("error creating AES cipher: %v", err)
-	}
-
+	// Initialize AES decryption
+	block, _ := aes.NewCipher(aesKey)
 	iv := make([]byte, aes.BlockSize)
-	if _, err := io.ReadFull(bufReader, iv); err != nil {
-		return fmt.Errorf("error reading IV: %v", err)
-	}
-	logger.Log("Read IV from file")
+	bufReader.Read(iv)
+	stream := cipher.NewCTR(block, iv)
 
-	numWorkers := runtime.NumCPU()
-	jobs := make(chan []byte, numWorkers)
-	results := make(chan []byte, numWorkers)
-	errors := make(chan error, 1)
-
-	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func(workerIV []byte) {
-			defer wg.Done()
-			stream := cipher.NewCTR(block, workerIV)
-			for chunk := range jobs {
-				decryptedChunk := make([]byte, len(chunk))
-				stream.XORKeyStream(decryptedChunk, chunk)
-				results <- decryptedChunk
-			}
-		}(incrementIV(iv))
-	}
-
-	go func() {
-		defer close(jobs)
-		for {
-			chunk := make([]byte, chunkSize)
-			n, err := bufReader.Read(chunk)
-			if err != nil {
-				if err != io.EOF {
-					errors <- fmt.Errorf("error reading encrypted data: %v", err)
-				}
-				break
-			}
-			if n == 0 {
-				break
-			}
-			jobs <- chunk[:n]
-		}
-	}()
-
-	go func() {
-		defer close(results)
-		for decryptedChunk := range results {
-			if _, err := bufWriter.Write(decryptedChunk); err != nil {
-				errors <- fmt.Errorf("error writing decrypted data: %v", err)
-				return
-			}
-		}
-	}()
-
-	wg.Wait()
-
-	select {
-	case err := <-errors:
+	// Decrypt file content
+	if err := processFileContent(bufReader, bufio.NewWriter(outFile), stream); err != nil {
 		return err
-	default:
 	}
 
-	duration := time.Since(startTime)
-	logger.Log(fmt.Sprintf("Decryption completed. Duration: %v", duration))
+	logger.Log(fmt.Sprintf("Decryption completed in %v", time.Since(startTime)))
 	return nil
 }
 
-func incrementIV(iv []byte) []byte {
-	newIV := make([]byte, len(iv))
-	copy(newIV, iv)
-	for i := len(newIV) - 1; i >= 0; i-- {
-		newIV[i]++
-		if newIV[i] != 0 {
+func writeExtension(w *bufio.Writer, ext string) error {
+	if err := binary.Write(w, binary.BigEndian, int32(len(ext))); err != nil {
+		return err
+	}
+	_, err := w.WriteString(ext)
+	return err
+}
+
+func readExtension(r *bufio.Reader) (string, error) {
+	var length int32
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return "", err
+	}
+	ext := make([]byte, length)
+	_, err := io.ReadFull(r, ext)
+	return string(ext), err
+}
+
+func writeLengthAndData(w *bufio.Writer, data []byte) error {
+	if err := binary.Write(w, binary.BigEndian, int32(len(data))); err != nil {
+		return err
+	}
+	_, err := w.Write(data)
+	return err
+}
+
+func readLengthAndData(r *bufio.Reader) ([]byte, error) {
+	var length int32
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return nil, err
+	}
+	data := make([]byte, length)
+	_, err := io.ReadFull(r, data)
+	return data, err
+}
+
+func processFileContent(r *bufio.Reader, w *bufio.Writer, stream cipher.Stream) error {
+	buf := make([]byte, chunkSize)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			encrypted := make([]byte, n)
+			stream.XORKeyStream(encrypted, buf[:n])
+			if _, err := w.Write(encrypted); err != nil {
+				return err
+			}
+		}
+		if err == io.EOF {
 			break
 		}
+		if err != nil {
+			return err
+		}
 	}
-	return newIV
+	return nil
 }

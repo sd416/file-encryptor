@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"file-encryptor/pkg/crypto"
@@ -104,7 +103,7 @@ func handleDecryption(file, key, password string, logger *logging.Logger) (strin
 		return "", fmt.Errorf("error initializing decryptor: %v", err)
 	}
 
-	outputFile := strings.TrimSuffix(file, filepath.Ext(file))
+	outputFile := strings.TrimSuffix(file, ".enc")
 	err = fileops.DecryptFile(file, outputFile, decryptor, logger)
 	return outputFile, err
 }
