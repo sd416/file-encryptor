@@ -3,7 +3,7 @@ name: Release Go Binary
 on:
   release:
     types: [created]
-  workflow_dispatch: 
+  workflow_dispatch: # Allows manual trigger
 
 permissions:
   contents: write
@@ -16,12 +16,7 @@ jobs:
     strategy:
       matrix:
         goos: [linux, windows, darwin]
-        goarch: ["386", amd64, arm64]
-        exclude:
-          - goarch: "386"
-            goos: darwin
-          - goarch: arm64
-            goos: windows
+        goarch: [amd64]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -29,17 +24,21 @@ jobs:
       - name: Set Up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.20" # Specify Go version
+          go-version: "1.20" # Adjust Go version as per requirement
 
       - name: Build Go Binary
         run: |
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/file-encryptor
+          echo "Building for ${{ matrix.goos }}-${{ matrix.goarch }}"
+          GO111MODULE=on CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+          go build -o file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/file-encryptor
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }}
+            file-encryptor-linux-amd64
+            file-encryptor-windows-amd64.exe
+            file-encryptor-darwin-amd64
             LICENSE
             README.md
         env:
