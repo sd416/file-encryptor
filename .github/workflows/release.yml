@@ -1,0 +1,45 @@
+name: Release Go Binary
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  releases-matrix:
+    name: Release Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: ["386", amd64, arm64]
+        exclude:
+          - goarch: "386"
+            goos: darwin
+          - goarch: arm64
+            goos: windows
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23" 
+
+      - name: Build Go Binary
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }} main.go
+
+      - name: Upload Binaries
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }}
+            LICENSE
+            README.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
