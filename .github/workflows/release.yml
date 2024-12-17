@@ -32,8 +32,8 @@ jobs:
 
       - name: Build Go Binary
         run: |
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }} main.go
-
+          GOOS=darwin GOARCH=amd64 go build -o file-encryptor-darwin-amd64 ./cmd/file-encryptor
+          
       - name: Upload Binaries
         uses: softprops/action-gh-release@v1
         with:
