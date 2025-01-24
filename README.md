@@ -13,6 +13,15 @@ File Encryptor is a command-line tool written in Go that provides secure file en
 - Support for **all file types**: text, images (JPG, PNG), videos, spreadsheets, and more
 - Parallel processing for faster encryption and decryption of large files
 
+**File Support Note**: 
+- The tool supports all file types, including:
+  - **Text**: TXT, CSV, JSON
+  - **Media**: JPG, PNG, MP4
+  - **Documents**: DOCX, PDF, XLS
+  - **Others**: Any other binary file format.
+
+Example usage ensures seamless encryption and decryption without data corruption.
+
 ## Installation
 
 1. Ensure you have Go installed on your system (version 1.16 or later).
@@ -118,11 +127,3 @@ This tool is provided as-is, without any warranties. Always ensure you have back
 
 ---
 
-**File Support Note**: 
-- The tool supports all file types, including:
-  - **Text**: TXT, CSV, JSON
-  - **Media**: JPG, PNG, MP4
-  - **Documents**: DOCX, PDF, XLS
-  - **Others**: Any other binary file format.
-
-Example usage ensures seamless encryption and decryption without data corruption.
