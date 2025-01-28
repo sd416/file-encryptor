@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	saltSize    = 16
-	iterations  = 10000
-	keySize     = 32
-	hmacSize    = 32
+	saltSize   = 16
+	iterations = 100000
+	keySize    = 32
+	hmacSize   = 32
 )
 
 type PasswordEncryptor struct {
