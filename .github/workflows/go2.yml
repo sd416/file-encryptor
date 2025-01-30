@@ -142,7 +142,7 @@ jobs:
           ORIGINAL_CONTENT=$(cat test.txt)
 
           # Generate keys and encrypt in one step
-          ./file-encryptor --generate-keys --encrypt -f test.txt
+          ./file-encryptor --generate-keys -r -f test.txt
 
           # Get the latest generated private key
           PRIVATE_KEY=$(ls -t key_private_*.key | head -1)
