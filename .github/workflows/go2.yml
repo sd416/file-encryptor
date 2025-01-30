@@ -1,7 +1,11 @@
-name: Go
+name: Go2
 
 on:
-  workflow_dispatch: # Allows manual trigger
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -11,13 +15,15 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.21"
 
       - name: Build
-        run: go build -v ./...
-
-      - name: Run Base Tests
-        run: go test -v ./...
+        run: |
+          go build -o file-encryptor cmd/file-encryptor/main.go
+          # Verify the binary was created
+          ls -l file-encryptor
+          # Make it executable
+          chmod +x file-encryptor
 
       - name: Prepare Test Files
         run: |
@@ -41,6 +47,8 @@ jobs:
 
       - name: Test RSA Key Generation
         run: |
+          pwd
+          ls -la
           ./file-encryptor --generate-keys --key-name test_key
           if [ ! -f test_key_private_*.key ] || [ ! -f test_key_public_*.pub ]; then
             echo "Failed to generate key pair"
