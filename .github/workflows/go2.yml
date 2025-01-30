@@ -147,9 +147,11 @@ jobs:
           # Get the latest generated private key
           PRIVATE_KEY=$(ls -t key_private_*.key | head -1)
 
+          rm test.txt
+
           # Decrypt using generated key
           ./file-encryptor -d -f test.txt.enc -k "$PRIVATE_KEY"
-          rm test.txt
+
           # Verify content
           DECRYPTED_CONTENT=$(cat test.txt)
           if [ "$ORIGINAL_CONTENT" != "$DECRYPTED_CONTENT" ]; then
