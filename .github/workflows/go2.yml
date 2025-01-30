@@ -69,7 +69,7 @@ jobs:
             exit 1
           fi
 
-          rm text.txt
+          rm test.txt
 
           # Decrypt
           ./file-encryptor -d -f test.txt.enc -k test_key_private_*.key
