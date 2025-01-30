@@ -47,14 +47,13 @@ Example usage ensures seamless encryption and decryption without data corruption
 
 ## Usage
 
-### Generate an RSA Key Pair
-To generate an RSA key pair (private and public key) in your current folder:
+### Key Generation Options
 ```bash
-ssh-keygen -t rsa -b 4096 -f my_ssh_key
+# Default key generation
+./file-encryptor --generate-keys
+# Generate and encrypt in one step
+./file-encryptor --generate-keys --encrypt -f document.pdf
 ```
-- This creates `my_ssh_key` (private key) and `my_ssh_key.pub` (public key).
-
----
 
 ### Encryption
 
