@@ -15,7 +15,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.23"
 
       - name: Build
         run: |
@@ -69,11 +69,13 @@ jobs:
             exit 1
           fi
 
+          rm text.txt
+
           # Decrypt
           ./file-encryptor -d -f test.txt.enc -k test_key_private_*.key
 
           # Verify content
-          DECRYPTED_CONTENT=$(cat test.txt.dec)
+          DECRYPTED_CONTENT=$(cat test.txt)
           if [ "$ORIGINAL_CONTENT" != "$DECRYPTED_CONTENT" ]; then
             echo "Content mismatch after RSA encryption/decryption"
             echo "Original: $ORIGINAL_CONTENT"
@@ -94,11 +96,13 @@ jobs:
             exit 1
           fi
 
+          rm binary.dat
+
           # Decrypt
           ./file-encryptor -d -f binary.dat.enc -k test_key_private_*.key
 
           # Verify hash
-          DECRYPTED_HASH=$(sha256sum binary.dat.dec | awk '{print $1}')
+          DECRYPTED_HASH=$(sha256sum binary.dat | awk '{print $1}')
           if [ "$ORIGINAL_HASH" != "$DECRYPTED_HASH" ]; then
             echo "Hash mismatch after RSA encryption/decryption"
             echo "Original hash: $ORIGINAL_HASH"
@@ -118,12 +122,12 @@ jobs:
             echo "Encryption failed - no output file"
             exit 1
           fi
-
+          rm data.json
           # Decrypt
           ./file-encryptor -d -f data.json.enc -p "TestPassword123!"
 
           # Verify content
-          DECRYPTED_CONTENT=$(cat data.json.dec)
+          DECRYPTED_CONTENT=$(cat data.json)
           if [ "$ORIGINAL_CONTENT" != "$DECRYPTED_CONTENT" ]; then
             echo "Content mismatch after password encryption/decryption"
             echo "Original: $ORIGINAL_CONTENT"
@@ -145,9 +149,9 @@ jobs:
 
           # Decrypt using generated key
           ./file-encryptor -d -f test.txt.enc -k "$PRIVATE_KEY"
-
+          rm test.txt
           # Verify content
-          DECRYPTED_CONTENT=$(cat test.txt.dec)
+          DECRYPTED_CONTENT=$(cat test.txt)
           if [ "$ORIGINAL_CONTENT" != "$DECRYPTED_CONTENT" ]; then
             echo "Content mismatch after generate-and-encrypt"
             echo "Original: $ORIGINAL_CONTENT"
@@ -180,11 +184,11 @@ jobs:
           ./file-encryptor -d -f test.pdf.enc -p "TestPassword123!"
 
           # Verify extensions
-          if [ ! -f test.doc.dec ]; then
+          if [ ! -f test.doc]; then
             echo "Failed to preserve .doc extension"
             exit 1
           fi
-          if [ ! -f test.pdf.dec ]; then
+          if [ ! -f test.pdf ]; then
             echo "Failed to preserve .pdf extension"
             exit 1
           fi
@@ -193,8 +197,8 @@ jobs:
       - name: Cleanup
         run: |
           rm -f test.txt test.txt.enc test.txt.dec
-          rm -f binary.dat binary.dat.enc binary.dat.dec
-          rm -f data.json data.json.enc data.json.dec
+          rm -f binary.dat binary.dat.enc binary.dat
+          rm -f data.json data.json.enc data.json
           rm -f test.doc* test.pdf*
           rm -f test_key_* key_*
           echo "Cleanup completed"
