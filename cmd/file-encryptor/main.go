@@ -13,6 +13,7 @@ import (
 
 func main() {
 	logger := logging.NewLogger()
+	logger.LogDebug("Starting file encryptor") //Added debug log
 
 	encrypt := flag.Bool("e", false, "Encrypt the file")
 	decrypt := flag.Bool("d", false, "Decrypt the file")
@@ -20,6 +21,7 @@ func main() {
 	key := flag.String("key", "", "Path to the key file (public key for encryption, private key for decryption)")
 	password := flag.String("password", "", "Password for encryption/decryption (alternative to key file)")
 	flag.Parse()
+	logger.LogDebug("Parsed command line flags") // Added debug log
 
 	if err := validateFlags(*encrypt, *decrypt, *file, *key, *password); err != nil {
 		logger.LogError(err.Error())
@@ -36,16 +38,18 @@ func main() {
 		operation = "Decryption"
 		outputFile, err = handleDecryption(*file, *key, *password, logger)
 	}
+    logger.LogDebugf("Operation: %s, Output file: %s", operation, outputFile) // Added debug log
 
 	if err != nil {
 		logger.LogError(fmt.Sprintf("%v", err))
 		if os.IsNotExist(err) {
-			logger.Log("Please check if the specified file and key exist and are readable.")
+			logger.LogInfo("Please check if the specified file and key exist and are readable.")
 		}
 		os.Exit(1)
 	}
 
-	logger.Log(fmt.Sprintf("File %s completed. Output file: %s", strings.ToLower(operation), outputFile))
+	logger.LogInfo(fmt.Sprintf("File %s completed. Output file: %s", strings.ToLower(operation), outputFile))
+	logger.LogDebug("File encryption/decryption completed") // Added debug log
 }
 
 func validateFlags(encrypt, decrypt bool, file, key, password string) error {
@@ -69,7 +73,7 @@ func validateFlags(encrypt, decrypt bool, file, key, password string) error {
 }
 
 func handleEncryption(file, key, password string, logger *logging.Logger) (string, error) {
-	logger.Log("Starting file encryption")
+	logger.LogInfo("Starting file encryption")
 	var encryptor crypto.Encryptor
 	var err error
 
@@ -78,6 +82,7 @@ func handleEncryption(file, key, password string, logger *logging.Logger) (strin
 	} else {
 		encryptor, err = crypto.NewPasswordEncryptor(password)
 	}
+    logger.LogDebugf("Initialized encryptor: %T", encryptor) // Added debug log
 
 	if err != nil {
 		return "", fmt.Errorf("error initializing encryptor: %v", err)
@@ -89,7 +94,7 @@ func handleEncryption(file, key, password string, logger *logging.Logger) (strin
 }
 
 func handleDecryption(file, key, password string, logger *logging.Logger) (string, error) {
-	logger.Log("Starting file decryption")
+	logger.LogInfo("Starting file decryption")
 	var decryptor crypto.Decryptor
 	var err error
 
@@ -98,6 +103,7 @@ func handleDecryption(file, key, password string, logger *logging.Logger) (strin
 	} else {
 		decryptor, err = crypto.NewPasswordDecryptor(password)
 	}
+    logger.LogDebugf("Initialized decryptor: %T", decryptor) // Added debug log
 
 	if err != nil {
 		return "", fmt.Errorf("error initializing decryptor: %v", err)

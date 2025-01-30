@@ -1,5 +1,4 @@
 package fileops
-package fileops
 
 import (
 	"bufio"
@@ -20,7 +19,7 @@ import (
 const chunkSize = 64 * 1024 // 64KB chunks
 
 func EncryptFile(inputFile, outputFile string, encryptor crypto.Encryptor, logger *logging.Logger) error {
-	logger.Log(fmt.Sprintf("Starting encryption of file: %s", inputFile))
+	logger.LogInfo(fmt.Sprintf("Starting encryption of file: %s", inputFile))
 	startTime := time.Now()
 
 	inFile, err := os.Open(inputFile)
@@ -75,12 +74,12 @@ func EncryptFile(inputFile, outputFile string, encryptor crypto.Encryptor, logge
 		return err
 	}
 
-	logger.Log(fmt.Sprintf("Encryption completed in %v", time.Since(startTime)))
+	logger.LogInfof("Encryption completed in %v", time.Since(startTime))
 	return nil
 }
 
 func DecryptFile(inputFile, outputFile string, decryptor crypto.Decryptor, logger *logging.Logger) error {
-	logger.Log(fmt.Sprintf("Starting decryption of file: %s", inputFile))
+	logger.LogInfo(fmt.Sprintf("Starting decryption of file: %s", inputFile))
 	startTime := time.Now()
 
 	inFile, err := os.Open(inputFile)
@@ -96,7 +95,6 @@ func DecryptFile(inputFile, outputFile string, decryptor crypto.Decryptor, logge
 	if err != nil {
 		return err
 	}
-
     // FIX: Construct outputFile correctly to avoid double extension
     outputFile = strings.TrimSuffix(outputFile, filepath.Ext(outputFile)) // Remove existing extension (if any)
     outputFile += extension
@@ -107,8 +105,6 @@ func DecryptFile(inputFile, outputFile string, decryptor crypto.Decryptor, logge
 		return fmt.Errorf("error creating output file: %v", err)
 	}
 	defer outFile.Close()
-
-
 
 	// Read encrypted AES key
 	encryptedAESKey, err := readLengthAndData(bufReader)
@@ -133,7 +129,7 @@ func DecryptFile(inputFile, outputFile string, decryptor crypto.Decryptor, logge
 		return err
 	}
 
-	logger.Log(fmt.Sprintf("Decryption completed in %v", time.Since(startTime)))
+    logger.LogInfof("Decryption completed in %v", time.Since(startTime))
 	return nil
 }
 
@@ -174,23 +170,23 @@ func readLengthAndData(r *bufio.Reader) ([]byte, error) {
 }
 
 func processFileContent(r *bufio.Reader, w *bufio.Writer, stream cipher.Stream) error {
-    buf := make([]byte, chunkSize)
-    outBuf := make([]byte, chunkSize) // Pre-allocate output buffer
+	buf := make([]byte, chunkSize)
+	outBuf := make([]byte, chunkSize)
 
-    for {
-        n, err := r.Read(buf)
-        if n > 0 {
-            stream.XORKeyStream(outBuf[:n], buf[:n])
-            if _, err := w.Write(outBuf[:n]); err != nil {
-                return fmt.Errorf("write error: %v", err)
-            }
-        }
-        if err == io.EOF {
-            break
-        }
-        if err != nil {
-            return fmt.Errorf("read error: %v", err)
-        }
-    }
-    return w.Flush()
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			stream.XORKeyStream(outBuf[:n], buf[:n])
+			if _, err := w.Write(outBuf[:n]); err != nil {
+				return fmt.Errorf("write error: %v", err)
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("read error: %v", err)
+		}
+	}
+	return w.Flush()
 }
