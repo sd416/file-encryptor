@@ -12,13 +12,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 const chunkSize = 64 * 1024 // 64KB chunks
 
 func EncryptFile(inputFile, outputFile string, encryptor crypto.Encryptor, logger *logging.Logger) error {
-	logger.Log(fmt.Sprintf("Starting encryption of file: %s", inputFile))
+	logger.LogInfo(fmt.Sprintf("Starting encryption of file: %s", inputFile))
 	startTime := time.Now()
 
 	inFile, err := os.Open(inputFile)
@@ -73,12 +74,12 @@ func EncryptFile(inputFile, outputFile string, encryptor crypto.Encryptor, logge
 		return err
 	}
 
-	logger.Log(fmt.Sprintf("Encryption completed in %v", time.Since(startTime)))
+	logger.LogInfof("Encryption completed in %v", time.Since(startTime))
 	return nil
 }
 
 func DecryptFile(inputFile, outputFile string, decryptor crypto.Decryptor, logger *logging.Logger) error {
-	logger.Log(fmt.Sprintf("Starting decryption of file: %s", inputFile))
+	logger.LogInfo(fmt.Sprintf("Starting decryption of file: %s", inputFile))
 	startTime := time.Now()
 
 	inFile, err := os.Open(inputFile)
@@ -94,7 +95,10 @@ func DecryptFile(inputFile, outputFile string, decryptor crypto.Decryptor, logge
 	if err != nil {
 		return err
 	}
-	outputFile += extension
+    // FIX: Construct outputFile correctly to avoid double extension
+    outputFile = strings.TrimSuffix(outputFile, filepath.Ext(outputFile)) // Remove existing extension (if any)
+    outputFile += extension
+
 
 	outFile, err := os.Create(outputFile)
 	if err != nil {
@@ -125,7 +129,7 @@ func DecryptFile(inputFile, outputFile string, decryptor crypto.Decryptor, logge
 		return err
 	}
 
-	logger.Log(fmt.Sprintf("Decryption completed in %v", time.Since(startTime)))
+    logger.LogInfof("Decryption completed in %v", time.Since(startTime))
 	return nil
 }
 
@@ -167,21 +171,22 @@ func readLengthAndData(r *bufio.Reader) ([]byte, error) {
 
 func processFileContent(r *bufio.Reader, w *bufio.Writer, stream cipher.Stream) error {
 	buf := make([]byte, chunkSize)
+	outBuf := make([]byte, chunkSize)
+
 	for {
 		n, err := r.Read(buf)
 		if n > 0 {
-			encrypted := make([]byte, n)
-			stream.XORKeyStream(encrypted, buf[:n])
-			if _, err := w.Write(encrypted); err != nil {
-				return err
+			stream.XORKeyStream(outBuf[:n], buf[:n])
+			if _, err := w.Write(outBuf[:n]); err != nil {
+				return fmt.Errorf("write error: %v", err)
 			}
 		}
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("read error: %v", err)
 		}
 	}
-	return nil
+	return w.Flush()
 }

@@ -1,44 +1,55 @@
 package crypto
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"io"
+    "crypto/aes"
+    "crypto/cipher"
+    "crypto/rand"
+    "fmt"
+    "io"
 )
 
 func EncryptAES(plaintext, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
+    if len(key) != 32 {
+        return nil, fmt.Errorf("invalid key size: expected 32 bytes, got %d", len(key))
+    }
 
-	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
-	iv := ciphertext[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, err
-	}
+    block, err := aes.NewCipher(key)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create cipher: %v", err)
+    }
 
-	stream := cipher.NewCFBEncrypter(block, iv)
-	stream.XORKeyStream(ciphertext[aes.BlockSize:], plaintext)
+    ciphertext := make([]byte, aes.BlockSize+len(plaintext))
+    iv := ciphertext[:aes.BlockSize]
+    if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+        return nil, fmt.Errorf("failed to generate IV: %v", err)
+    }
 
-	return ciphertext, nil
+    stream := cipher.NewCFBEncrypter(block, iv)
+    stream.XORKeyStream(ciphertext[aes.BlockSize:], plaintext)
+
+    return ciphertext, nil
 }
 
 func DecryptAES(ciphertext, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
+    if len(key) != 32 {
+        return nil, fmt.Errorf("invalid key size: expected 32 bytes, got %d", len(key))
+    }
 
-	if len(ciphertext) < aes.BlockSize {
-		return nil, err
-	}
-	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
+    block, err := aes.NewCipher(key)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create cipher: %v", err)
+    }
 
-	stream := cipher.NewCFBDecrypter(block, iv)
-	stream.XORKeyStream(ciphertext, ciphertext)
+    if len(ciphertext) < aes.BlockSize {
+        return nil, fmt.Errorf("ciphertext too short")
+    }
 
-	return ciphertext, nil
+    iv := ciphertext[:aes.BlockSize]
+    ciphertext = ciphertext[aes.BlockSize:]
+
+    stream := cipher.NewCFBDecrypter(block, iv)
+    plaintext := make([]byte, len(ciphertext))
+    stream.XORKeyStream(plaintext, ciphertext)
+
+    return plaintext, nil
 }
