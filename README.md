@@ -52,7 +52,7 @@ Example usage ensures seamless encryption and decryption without data corruption
 # Default key generation
 ./file-encryptor --generate-keys
 # Generate and encrypt in one step
-./file-encryptor --generate-keys --encrypt -f document.pdf
+./file-encryptor --generate-keys -e -f document.pdf
 ```
 
 ### Encryption
