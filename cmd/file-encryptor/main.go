@@ -20,31 +20,50 @@ func main() {
 
     // Define both short and long flag names for file and key
 	file := flag.String("file", "", "File to encrypt or decrypt")
-	flag.StringVar(file, "f", "", "File to encrypt or decrypt (shorthand)") //Bind short flag to the same variable
+	flag.StringVar(file, "f", "", "File to encrypt or decrypt (shorthand)")
 	key := flag.String("key", "", "Path to the key file")
-    flag.StringVar(key, "k", "", "Path to the key file (shorthand)") //Bind short flag to the same variable
+    flag.StringVar(key, "k", "", "Path to the key file (shorthand)")
 
 	password := flag.String("password", "", "Password for encryption/decryption (alternative to key file)")
-    flag.StringVar(password, "p", "", "Password for encryption/decryption (shorthand)") //Bind short flag to the same variable
+    flag.StringVar(password, "p", "", "Password for encryption/decryption (shorthand)")
+
+    generateKeys := flag.Bool("generate-keys", false, "Generate a new RSA key pair")
+    keyBaseName := flag.String("key-name", "key", "Base name for the generated key files")
+
 	flag.Parse()
 	logger.LogDebug("Parsed command line flags")
 
+
+    if *generateKeys && !*encrypt && *file == "" {
+		if err := handleGenerateKeys(*keyBaseName, logger); err != nil {
+			logger.LogError(err.Error())
+			os.Exit(1)
+		}
+		logger.LogInfo("RSA Key pair generated successfully.")
+		os.Exit(0)
+    }
+
     // Use the flag values after parsing.
-	if err := validateFlags(*encrypt, *decrypt, *file, *key, *password); err != nil {
+	if err := validateFlags(*encrypt, *decrypt, *file, *key, *password, *generateKeys); err != nil {
 		logger.LogError(err.Error())
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	var err error
-	var operation, outputFile string
-	if *encrypt {
+    var err error
+    var operation, outputFile string
+    if *generateKeys && *encrypt && *file != "" {
 		operation = "Encryption"
+        outputFile, err = handleGenerateAndEncrypt(*keyBaseName, *file, logger)
+    } else if *encrypt {
+        operation = "Encryption"
 		outputFile, err = handleEncryption(*file, *key, *password, logger)
 	} else {
 		operation = "Decryption"
 		outputFile, err = handleDecryption(*file, *key, *password, logger)
 	}
+
+
     logger.LogDebugf("Operation: %s, Output file: %s", operation, outputFile)
 
 	if err != nil {
@@ -59,16 +78,26 @@ func main() {
 	logger.LogDebug("File encryption/decryption completed")
 }
 
-func validateFlags(encrypt, decrypt bool, file, key, password string) error {
-	if (encrypt && decrypt) || (!encrypt && !decrypt) {
+func validateFlags(encrypt, decrypt bool, file, key, password string, generateKeys bool) error {
+    if generateKeys && encrypt && file == "" {
+        return fmt.Errorf("the --generate-keys flag requires the -f option to encrypt after generation")
+    }
+
+    if generateKeys {
+        if decrypt || key != "" || password != "" {
+            return fmt.Errorf("the --generate-keys flag cannot be combined with decrypt, key or password options")
+        }
+    }
+
+    if (encrypt && decrypt) || (!encrypt && !decrypt) {
 		return fmt.Errorf("please specify either -e for encryption or -d for decryption")
 	}
 
-	if file == "" {
+	if file == "" && !generateKeys {
 		return fmt.Errorf("please provide the --file or -f argument")
 	}
 
-	if key == "" && password == "" {
+	if key == "" && password == "" && !generateKeys {
 		return fmt.Errorf("please provide either --key or -k or --password or -p argument")
 	}
 
@@ -77,6 +106,48 @@ func validateFlags(encrypt, decrypt bool, file, key, password string) error {
 	}
 
 	return nil
+}
+
+
+func handleGenerateKeys(keyBaseName string, logger *logging.Logger) error {
+	logger.LogInfo("Starting RSA key pair generation")
+
+    if err := crypto.GenerateRSAKeyPair(keyBaseName, logger); err != nil {
+		return fmt.Errorf("failed to generate RSA key pair: %w", err)
+	}
+
+    logger.LogInfo("RSA key pair generated successfully.")
+	return nil
+}
+
+func handleGenerateAndEncrypt(keyBaseName string, file string, logger *logging.Logger) (string, error) {
+    logger.LogInfo("Starting RSA key pair generation and file encryption")
+
+    // Generate the key pair
+    privateKeyName, publicKeyName, err := crypto.GenerateRSAKeyPairWithNames(keyBaseName, logger)
+    if err != nil {
+        return "", fmt.Errorf("failed to generate RSA key pair: %w", err)
+    }
+
+    // Create encryptor using the public key
+    encryptor, err := crypto.NewRSAEncryptor(publicKeyName)
+    if err != nil {
+        return "", fmt.Errorf("failed to create encryptor: %w", err)
+    }
+
+    // Encrypt the file
+    outputFile := file + ".enc"
+    err = fileops.EncryptFile(file, outputFile, encryptor, logger)
+    if err != nil {
+        return "", err
+    }
+
+    // Log the key locations instead of removing them
+    logger.LogInfo(fmt.Sprintf("Private key saved to: %s", privateKeyName))
+    logger.LogInfo(fmt.Sprintf("Public key saved to: %s", publicKeyName))
+    logger.LogInfo("Keep the private key secure - you will need it to decrypt the file!")
+
+    return outputFile, nil
 }
 
 func handleEncryption(file, key, password string, logger *logging.Logger) (string, error) {
