@@ -13,7 +13,7 @@ File Encryptor is a command-line tool written in Go that provides secure file en
 - Support for **all file types**: text, images (JPG, PNG), videos, spreadsheets, and more
 - Parallel processing for faster encryption and decryption of large files
 
-**File Support Note**: 
+**File Support Note**:
 - The tool supports all file types, including:
   - **Text**: TXT, CSV, JSON
   - **Media**: JPG, PNG, MP4
@@ -32,7 +32,7 @@ Example usage ensures seamless encryption and decryption without data corruption
 
 2. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/file-encryptor.git
+   git clone https://github.com/sd416/file-encryptor.git
    ```
 
 3. Navigate to the project directory:
@@ -42,7 +42,7 @@ Example usage ensures seamless encryption and decryption without data corruption
 
 4. Build the project:
    ```bash
-   go build -o file-encryptor main.go
+   go build -o file-encryptor cmd/file-encryptor/main.go
    ```
 
 ## Usage
@@ -60,21 +60,29 @@ ssh-keygen -t rsa -b 4096 -f my_ssh_key
 
 #### Encrypt a file using an RSA public key:
 ```bash
-./file-encryptor -e --file <input_file> --key my_ssh_key.pub
+./file-encryptor -e --file <input_file> --key <public_key_file>
+# or using short flags
+./file-encryptor -e -f <input_file> -k <public_key_file>
 ```
 Example:
 ```bash
 ./file-encryptor -e --file picture.jpg --key my_ssh_key.pub
+# or
+./file-encryptor -e -f picture.jpg -k my_ssh_key.pub
 ```
 - The encrypted file will be saved as `picture.jpg.enc`.
 
 #### Encrypt a file using a password:
 ```bash
 ./file-encryptor -e --file <input_file> --password <your_password>
+# or using short flags
+./file-encryptor -e -f <input_file> -p <your_password>
 ```
 Example:
 ```bash
 ./file-encryptor -e --file document.pdf --password myStrongPassword123
+# or
+./file-encryptor -e -f document.pdf -p myStrongPassword123
 ```
 
 ---
@@ -83,21 +91,29 @@ Example:
 
 #### Decrypt a file using an RSA private key:
 ```bash
-./file-encryptor -d --file <encrypted_file> --key my_ssh_key
+./file-encryptor -d --file <encrypted_file> --key <private_key_file>
+# or using short flags
+./file-encryptor -d -f <encrypted_file> -k <private_key_file>
 ```
 Example:
 ```bash
 ./file-encryptor -d --file picture.jpg.enc --key my_ssh_key
+# or
+./file-encryptor -d -f picture.jpg.enc -k my_ssh_key
 ```
 - The decrypted file will retain its original extension (e.g., `picture.jpg`).
 
 #### Decrypt a file using a password:
 ```bash
 ./file-encryptor -d --file <encrypted_file> --password <your_password>
+# or using short flags
+./file-encryptor -d -f <encrypted_file> -p <your_password>
 ```
 Example:
 ```bash
 ./file-encryptor -d --file document.pdf.enc --password myStrongPassword123
+# or
+./file-encryptor -d -f document.pdf.enc -p myStrongPassword123
 ```
 
 ---
@@ -126,4 +142,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 This tool is provided as-is, without any warranties. Always ensure you have backups of your important files before encryption.
 
 ---
-
