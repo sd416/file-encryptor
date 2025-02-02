@@ -23,10 +23,11 @@ func main() {
 	decrypt := fs.Bool("d", false, "Decrypt the files")
 	key := fs.String("k", "", "Path to the key file")
 	password := fs.String("p", "", "Password for encryption/decryption")
+	files := fs.String("f", "", "Files to process") // Keep the -f flag
 	generateKeys := fs.Bool("generate-keys", false, "Generate a new RSA key pair")
 	keyBaseName := fs.String("key-name", "key", "Base name for the generated key files")
 
-	// Parse flags
+	// Parse flags until first non-flag argument
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		logger.LogError(fmt.Sprintf("Error parsing flags: %v", err))
 		os.Exit(1)
@@ -41,24 +42,30 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Get remaining arguments (files)
-	args := fs.Args()
-	if len(args) == 0 {
-		logger.LogError("No files specified")
-		fs.Usage()
-		os.Exit(1)
+	// Get all files (both from -f flag and remaining arguments)
+	var filePaths []string
+
+	// First, add files from the -f flag if provided
+	if *files != "" {
+		// Split the -f argument by spaces to handle multiple files/patterns
+		for _, file := range strings.Fields(*files) {
+			filePaths = append(filePaths, file)
+		}
 	}
 
-	// Validate other flags
-	if err := validateFlags(*encrypt, *decrypt, *key, *password); err != nil {
+	// Then add any remaining arguments
+	filePaths = append(filePaths, fs.Args()...)
+
+	// Validate flags and files
+	if err := validateFlags(*encrypt, *decrypt, filePaths, *key, *password); err != nil {
 		logger.LogError(err.Error())
 		fs.Usage()
 		os.Exit(1)
 	}
 
 	// Process file patterns and collect all matching files
-	var filePaths []string
-	for _, pattern := range args {
+	var expandedFilePaths []string
+	for _, pattern := range filePaths {
 		matches, err := filepath.Glob(pattern)
 		if err != nil {
 			logger.LogError(fmt.Sprintf("Invalid file pattern '%s': %v", pattern, err))
@@ -68,36 +75,36 @@ func main() {
 			logger.LogError(fmt.Sprintf("No files match pattern: %s", pattern))
 			continue
 		}
-		filePaths = append(filePaths, matches...)
+		expandedFilePaths = append(expandedFilePaths, matches...)
 	}
 
 	// Filter out already encrypted files when encrypting
 	if *encrypt {
 		var filteredPaths []string
-		for _, path := range filePaths {
+		for _, path := range expandedFilePaths {
 			if !strings.HasSuffix(path, ".enc") {
 				filteredPaths = append(filteredPaths, path)
 			}
 		}
-		filePaths = filteredPaths
+		expandedFilePaths = filteredPaths
 	}
 
 	// Verify we have files to process
-	if len(filePaths) == 0 {
+	if len(expandedFilePaths) == 0 {
 		logger.LogError("No valid files to process")
 		os.Exit(1)
 	}
 
-	logger.LogDebug(fmt.Sprintf("Processing files: %v", filePaths))
+	logger.LogDebug(fmt.Sprintf("Processing files: %v", expandedFilePaths))
 
 	var operation string
 	var err error
 	if *encrypt {
 		operation = "Encryption"
-		err = handleMultipleFileOperation(filePaths, *key, *password, true, logger)
+		err = handleMultipleFileOperation(expandedFilePaths, *key, *password, true, logger)
 	} else {
 		operation = "Decryption"
-		err = handleMultipleFileOperation(filePaths, *key, *password, false, logger)
+		err = handleMultipleFileOperation(expandedFilePaths, *key, *password, false, logger)
 	}
 
 	if err != nil {
@@ -109,9 +116,13 @@ func main() {
 	logger.LogDebug("Operation completed")
 }
 
-func validateFlags(encrypt, decrypt bool, key, password string) error {
+func validateFlags(encrypt, decrypt bool, files []string, key, password string) error {
 	if (encrypt && decrypt) || (!encrypt && !decrypt) {
 		return fmt.Errorf("please specify either -e for encryption or -d for decryption")
+	}
+
+	if len(files) == 0 {
+		return fmt.Errorf("please provide files to process using -f flag or as arguments")
 	}
 
 	if key == "" && password == "" {

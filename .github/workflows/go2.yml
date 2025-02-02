@@ -1,0 +1,173 @@
+name: Go2
+
+on:
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Build
+        run: |
+          go build -o file-encryptor cmd/file-encryptor/main.go
+          # Verify the binary was created
+          ls -l file-encryptor
+          # Make it executable
+          chmod +x file-encryptor
+
+      - name: Prepare Test Files
+        run: |
+          # Create a text file with specific content
+          echo "This is a test file with special characters: !@#$%^&*()" > test.txt
+
+          # Create a binary file
+          dd if=/dev/urandom of=binary.dat bs=1024 count=100
+
+          # Create a JSON file
+          echo '{"test": "data", "number": 123}' > data.json
+
+          # Create test directory with multiple files
+          mkdir -p test_dir
+          echo "File 1" > test_dir/file1.txt
+          echo "File 2" > test_dir/file2.txt
+          echo "File 3" > test_dir/file3.txt
+
+          echo "Created test files:"
+          ls -l test.txt binary.dat data.json
+          ls -l test_dir/
+          echo "test.txt content:"
+          cat test.txt
+          echo "data.json content:"
+          cat data.json
+          echo "binary.dat sha256sum:"
+          sha256sum binary.dat
+
+      - name: Test RSA Key Generation
+        run: |
+          pwd
+          ls -la
+          ./file-encryptor --generate-keys --key-name test_key
+          if [ ! -f test_key_private_*.key ] || [ ! -f test_key_public_*.pub ]; then
+            echo "Failed to generate key pair"
+            exit 1
+          fi
+          echo "Generated RSA key pair successfully"
+          ls -l test_key_*
+
+      - name: Test RSA Encryption and Decryption - Multiple Files
+        run: |
+          # Store original content
+          ORIGINAL_CONTENT=$(cat test.txt)
+          ORIGINAL_JSON=$(cat data.json)
+          BINARY_HASH=$(sha256sum binary.dat | awk '{print $1}')
+
+          # Encrypt multiple files
+          ./file-encryptor -e -k test_key_public_*.pub -f "test.txt binary.dat data.json"
+          if [ ! -f test.txt.enc ] || [ ! -f binary.dat.enc ] || [ ! -f data.json.enc ]; then
+            echo "Encryption failed - not all files encrypted"
+            exit 1
+          fi
+
+          rm test.txt binary.dat data.json
+
+          # Decrypt multiple files
+          ./file-encryptor -d -k test_key_private_*.key -f "*.enc"
+
+          # Verify content
+          DECRYPTED_CONTENT=$(cat test.txt)
+          DECRYPTED_JSON=$(cat data.json)
+          DECRYPTED_HASH=$(sha256sum binary.dat | awk '{print $1}')
+
+          if [ "$ORIGINAL_CONTENT" != "$DECRYPTED_CONTENT" ]; then
+            echo "Content mismatch in text file after RSA encryption/decryption"
+            exit 1
+          fi
+
+          if [ "$ORIGINAL_JSON" != "$DECRYPTED_JSON" ]; then
+            echo "Content mismatch in JSON file after RSA encryption/decryption"
+            exit 1
+          fi
+
+          if [ "$BINARY_HASH" != "$DECRYPTED_HASH" ]; then
+            echo "Binary file hash mismatch after RSA encryption/decryption"
+            exit 1
+          fi
+
+          echo "RSA encryption/decryption for multiple files verified successfully"
+
+      - name: Test Password Encryption and Decryption - Directory Files
+        run: |
+          # Store original content
+          ORIGINAL_CONTENT1=$(cat test_dir/file1.txt)
+          ORIGINAL_CONTENT2=$(cat test_dir/file2.txt)
+          ORIGINAL_CONTENT3=$(cat test_dir/file3.txt)
+
+          # Encrypt directory files
+          ./file-encryptor -e -p "TestPassword123!" -f "test_dir/*.txt"
+          if [ ! -f test_dir/file1.txt.enc ] || [ ! -f test_dir/file2.txt.enc ] || [ ! -f test_dir/file3.txt.enc ]; then
+            echo "Encryption failed - not all directory files encrypted"
+            exit 1
+          fi
+
+          rm test_dir/*.txt
+
+          # Decrypt files
+          ./file-encryptor -d -p "TestPassword123!" -f "test_dir/*.enc"
+
+          # Verify content
+          if [ "$(cat test_dir/file1.txt)" != "$ORIGINAL_CONTENT1" ] || \
+             [ "$(cat test_dir/file2.txt)" != "$ORIGINAL_CONTENT2" ] || \
+             [ "$(cat test_dir/file3.txt)" != "$ORIGINAL_CONTENT3" ]; then
+            echo "Content mismatch in directory files after password encryption/decryption"
+            exit 1
+          fi
+          echo "Password encryption/decryption for directory files verified successfully"
+
+      - name: Test Generate-and-Encrypt with Multiple Files
+        run: |
+          # Create test files
+          echo "Test content 1" > test1.txt
+          echo "Test content 2" > test2.txt
+          CONTENT1="Test content 1"
+          CONTENT2="Test content 2"
+
+          # Generate keys and encrypt in one step
+          ./file-encryptor --generate-keys -e -f "test*.txt"
+
+          # Get the latest generated private key
+          PRIVATE_KEY=$(ls -t key_private_*.key | head -1)
+
+          rm test*.txt
+
+          # Decrypt using generated key
+          ./file-encryptor -d -k "$PRIVATE_KEY" -f "test*.txt.enc"
+
+          # Verify content
+          if [ "$(cat test1.txt)" != "$CONTENT1" ] || [ "$(cat test2.txt)" != "$CONTENT2" ]; then
+            echo "Content mismatch after generate-and-encrypt"
+            exit 1
+          fi
+          echo "Generate-and-encrypt with multiple files verified successfully"
+
+      - name: Test Wrong Password Scenario
+        run: |
+          # Attempt to decrypt with wrong password
+          if ./file-encryptor -d -p "WrongPassword123!" -f "test_dir/*.enc"; then
+            echo "Decryption with wrong password succeeded when it should fail"
+            exit 1
+          fi
+          echo "Wrong password test passed successfully"
+
+      - name: Cleanup
+        run: |
+          rm -f test*.txt* binary.dat* data.json*
+          rm -f test_key_* key_*
+          rm -rf test_dir
+          echo "Cleanup completed"
