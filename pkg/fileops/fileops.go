@@ -1,19 +1,17 @@
 package fileops
 
 import (
-    "bufio"
-    "crypto/aes"
-    "crypto/cipher"
-    "crypto/rand"
-    "encoding/binary"
-    "file-encryptor/pkg/crypto"
-    "file-encryptor/pkg/logging"
-    "fmt"
-    "io"
-    "os"
-    "path/filepath"
-    "strings"
-    "time"
+	"bufio"
+	"crypto/rand"
+	"encoding/binary"
+	"file-encryptor/pkg/crypto"
+	"file-encryptor/pkg/logging"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 const (
@@ -75,26 +73,8 @@ func EncryptFile(inputFile, outputFile string, encryptor crypto.Encryptor, logge
         return err
     }
 
-    // Initialize AES encryption
-    block, err := aes.NewCipher(aesKey)
-    if err != nil {
-        return fmt.Errorf("error creating AES cipher: %v", err)
-    }
-
-    // Generate and write IV
-    iv := make([]byte, aes.BlockSize)
-    if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-        return fmt.Errorf("error generating IV: %v", err)
-    }
-    if _, err := bufWriter.Write(iv); err != nil {
-        return fmt.Errorf("error writing IV: %v", err)
-    }
-
-    // Create the AES CTR stream
-    stream := cipher.NewCTR(block, iv)
-
     // Encrypt file content
-    if err := processFileContent(bufio.NewReader(inFile), bufWriter, stream); err != nil {
+    if err := processFileContent(bufio.NewReader(inFile), bufWriter, aesKey, logger); err != nil {
         return fmt.Errorf("error processing file content: %v", err)
     }
 
@@ -149,27 +129,11 @@ func DecryptFile(inputFile, outputFile string, decryptor crypto.Decryptor, logge
         return fmt.Errorf("error decrypting AES key: %v", err)
     }
 
-    // Initialize AES decryption
-    block, err := aes.NewCipher(aesKey)
-    if err != nil {
-        return fmt.Errorf("error creating AES cipher: %v", err)
-    }
-
-    // Read IV
-    iv := make([]byte, aes.BlockSize)
-    if _, err := io.ReadFull(bufReader, iv); err != nil {
-        return fmt.Errorf("error reading IV: %v", err)
-    }
-
-    // Create the AES CTR stream
-    stream := cipher.NewCTR(block, iv)
-
     // Decrypt file content
     bufWriter := bufio.NewWriter(outFile)
-    if err := processFileContent(bufReader, bufWriter, stream); err != nil {
+    if err := processFileContentForDecryption(bufReader, bufWriter, aesKey, logger); err != nil {
         return fmt.Errorf("error processing file content: %v", err)
     }
-
     // Ensure all data is written before validation
     if err := bufWriter.Flush(); err != nil {
         return fmt.Errorf("error flushing output buffer: %v", err)
@@ -239,17 +203,15 @@ func readHash(r *bufio.Reader) (string, error) {
     return string(hashBytes), nil
 }
 
-func processFileContent(r *bufio.Reader, w *bufio.Writer, stream cipher.Stream) error {
+func processFileContent(r *bufio.Reader, w *bufio.Writer, key []byte, logger *logging.Logger) error {
+    var processedData []byte
     buf := make([]byte, chunkSize)
-    outBuf := make([]byte, chunkSize)
 
+    // Read all data first
     for {
         n, err := r.Read(buf)
         if n > 0 {
-            stream.XORKeyStream(outBuf[:n], buf[:n])
-            if _, err := w.Write(outBuf[:n]); err != nil {
-                return fmt.Errorf("write error: %v", err)
-            }
+            processedData = append(processedData, buf[:n]...)
         }
         if err == io.EOF {
             break
@@ -258,5 +220,49 @@ func processFileContent(r *bufio.Reader, w *bufio.Writer, stream cipher.Stream) 
             return fmt.Errorf("read error: %v", err)
         }
     }
+
+    // Encrypt the entire data at once
+    encrypted, err := crypto.EncryptAES(processedData, key)
+    if err != nil {
+        return fmt.Errorf("error encrypting data: %v", err)
+    }
+
+    // Write the encrypted data
+    if _, err := w.Write(encrypted); err != nil {
+        return fmt.Errorf("write error: %v", err)
+    }
+
+    return w.Flush()
+}
+
+func processFileContentForDecryption(r *bufio.Reader, w *bufio.Writer, key []byte, logger *logging.Logger) error {
+    var encryptedData []byte
+    buf := make([]byte, chunkSize)
+
+    // Read all encrypted data
+    for {
+        n, err := r.Read(buf)
+        if n > 0 {
+            encryptedData = append(encryptedData, buf[:n]...)
+        }
+        if err == io.EOF {
+            break
+        }
+        if err != nil {
+            return fmt.Errorf("read error: %v", err)
+        }
+    }
+
+    // Decrypt the entire data at once
+    decrypted, err := crypto.DecryptAES(encryptedData, key)
+    if err != nil {
+        return fmt.Errorf("error decrypting data: %v", err)
+    }
+
+    // Write the decrypted data
+    if _, err := w.Write(decrypted); err != nil {
+        return fmt.Errorf("write error: %v", err)
+    }
+
     return w.Flush()
 }
