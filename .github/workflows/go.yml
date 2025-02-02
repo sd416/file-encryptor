@@ -138,20 +138,29 @@ jobs:
 
       - name: Test Generate-and-Encrypt with Decryption
         run: |
-          # Store original content
+          # Create a test file
+          echo "Test content for generate-and-encrypt" > test.txt
           ORIGINAL_CONTENT=$(cat test.txt)
 
-          # Generate keys and encrypt in one step
-          ./file-encryptor --generate-keys -e -f test.txt
-
-          # Get the latest generated private key
-          PRIVATE_KEY=$(ls -t key_private_*.key | head -1)
-
+          # Generate keys and encrypt
+          ./file-encryptor --generate-keys --key-name gen_test_key
+          
+          # Wait for key generation to complete
+          sleep 1
+          
+          # Get the key files
+          GEN_PRIVATE_KEY=$(ls gen_test_key_private_*.key)
+          GEN_PUBLIC_KEY=$(ls gen_test_key_public_*.pub)
+          
+          # Encrypt using the generated public key
+          ./file-encryptor -e -k "$GEN_PUBLIC_KEY" -f "test.txt"
+          
+          # Remove original file
           rm test.txt
-
-          # Decrypt using generated key
-          ./file-encryptor -d -f test.txt.enc -k "$PRIVATE_KEY"
-
+          
+          # Decrypt using the generated private key
+          ./file-encryptor -d -k "$GEN_PRIVATE_KEY" -f "test.txt.enc"
+          
           # Verify content
           DECRYPTED_CONTENT=$(cat test.txt)
           if [ "$ORIGINAL_CONTENT" != "$DECRYPTED_CONTENT" ]; then
