@@ -83,7 +83,14 @@ Example:
 # or
 ./file-encryptor -e -f document.pdf -p myStrongPassword123
 ```
+#### Encrypt multiple files:
 
+Example:
+```bash
+./file-encryptor -e --password myStrongPassword123 --file file1 file2 file3
+# or
+./file-encryptor -e -p myStrongPassword123 -f file1 file2 file3
+```
 ---
 
 ### Decryption
