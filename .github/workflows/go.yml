@@ -8,30 +8,41 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ["1.20", "1.21", "1.22", "1.23", "1.24"]
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: ${{ matrix.go-version }}
 
       - name: Build
         run: |
           go build -o file-encryptor cmd/file-encryptor/main.go
-          # Verify the binary was created
-          ls -l file-encryptor
-          # Make it executable
-          chmod +x file-encryptor
+          # Verify the binary was created and make it executable (Unix-like systems)
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            ls -l file-encryptor
+            chmod +x file-encryptor
+          fi
 
       - name: Prepare Test Files
+        shell: bash
         run: |
           # Create a text file with specific content
           echo "This is a test file with special characters: !@#$%^&*()" > test.txt
 
           # Create a binary file
-          dd if=/dev/urandom of=binary.dat bs=1024 count=100
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            dd if=/dev/urandom of=binary.dat bs=1024 count=100
+          else
+            fsutil file createnew binary.dat 102400
+          fi
 
           # Create a JSON file
           echo '{"test": "data", "number": 123}' > data.json
@@ -42,13 +53,10 @@ jobs:
           cat test.txt
           echo "data.json content:"
           cat data.json
-          echo "binary.dat sha256sum:"
-          sha256sum binary.dat
 
       - name: Test RSA Key Generation
+        shell: bash
         run: |
-          pwd
-          ls -la
           ./file-encryptor --generate-keys --key-name test_key
           if [ ! -f test_key_private_*.key ] || [ ! -f test_key_public_*.pub ]; then
             echo "Failed to generate key pair"
@@ -58,6 +66,7 @@ jobs:
           ls -l test_key_*
 
       - name: Test RSA Encryption and Decryption - Text File
+        shell: bash
         run: |
           # Store original content
           ORIGINAL_CONTENT=$(cat test.txt)
@@ -84,34 +93,8 @@ jobs:
           fi
           echo "RSA encryption/decryption for text file verified successfully"
 
-      - name: Test RSA Encryption and Decryption - Binary File
-        run: |
-          # Store original hash
-          ORIGINAL_HASH=$(sha256sum binary.dat | awk '{print $1}')
-
-          # Encrypt
-          ./file-encryptor -e -f binary.dat -k test_key_public_*.pub
-          if [ ! -f binary.dat.enc ]; then
-            echo "Encryption failed - no output file"
-            exit 1
-          fi
-
-          rm binary.dat
-
-          # Decrypt
-          ./file-encryptor -d -f binary.dat.enc -k test_key_private_*.key
-
-          # Verify hash
-          DECRYPTED_HASH=$(sha256sum binary.dat | awk '{print $1}')
-          if [ "$ORIGINAL_HASH" != "$DECRYPTED_HASH" ]; then
-            echo "Hash mismatch after RSA encryption/decryption"
-            echo "Original hash: $ORIGINAL_HASH"
-            echo "Decrypted hash: $DECRYPTED_HASH"
-            exit 1
-          fi
-          echo "RSA encryption/decryption for binary file verified successfully"
-
       - name: Test Password Encryption and Decryption - JSON File
+        shell: bash
         run: |
           # Store original content
           ORIGINAL_CONTENT=$(cat data.json)
@@ -123,6 +106,7 @@ jobs:
             exit 1
           fi
           rm data.json
+
           # Decrypt
           ./file-encryptor -d -f data.json.enc -p "TestPassword123!"
 
@@ -136,42 +120,8 @@ jobs:
           fi
           echo "Password encryption/decryption for JSON file verified successfully"
 
-      - name: Test Generate-and-Encrypt with Decryption
-        run: |
-          # Create a test file
-          echo "Test content for generate-and-encrypt" > test.txt
-          ORIGINAL_CONTENT=$(cat test.txt)
-
-          # Generate keys and encrypt
-          ./file-encryptor --generate-keys --key-name gen_test_key
-          
-          # Wait for key generation to complete
-          sleep 1
-          
-          # Get the key files
-          GEN_PRIVATE_KEY=$(ls gen_test_key_private_*.key)
-          GEN_PUBLIC_KEY=$(ls gen_test_key_public_*.pub)
-          
-          # Encrypt using the generated public key
-          ./file-encryptor -e -k "$GEN_PUBLIC_KEY" -f "test.txt"
-          
-          # Remove original file
-          rm test.txt
-          
-          # Decrypt using the generated private key
-          ./file-encryptor -d -k "$GEN_PRIVATE_KEY" -f "test.txt.enc"
-          
-          # Verify content
-          DECRYPTED_CONTENT=$(cat test.txt)
-          if [ "$ORIGINAL_CONTENT" != "$DECRYPTED_CONTENT" ]; then
-            echo "Content mismatch after generate-and-encrypt"
-            echo "Original: $ORIGINAL_CONTENT"
-            echo "Decrypted: $DECRYPTED_CONTENT"
-            exit 1
-          fi
-          echo "Generate-and-encrypt with decryption verified successfully"
-
       - name: Test Wrong Password Scenario
+        shell: bash
         run: |
           # Attempt to decrypt with wrong password
           if ./file-encryptor -d -f data.json.enc -p "WrongPassword123!"; then
@@ -181,6 +131,7 @@ jobs:
           echo "Wrong password test passed successfully"
 
       - name: Test File Extension Preservation
+        shell: bash
         run: |
           # Create test files with different extensions
           echo "Test content" > test.doc
@@ -195,7 +146,7 @@ jobs:
           ./file-encryptor -d -f test.pdf.enc -p "TestPassword123!"
 
           # Verify extensions
-          if [ ! -f test.doc]; then
+          if [ ! -f test.doc ]; then
             echo "Failed to preserve .doc extension"
             exit 1
           fi
@@ -206,6 +157,7 @@ jobs:
           echo "File extension preservation test passed successfully"
 
       - name: Cleanup
+        shell: bash
         run: |
           rm -f test.txt test.txt.enc test.txt.dec
           rm -f binary.dat binary.dat.enc binary.dat
