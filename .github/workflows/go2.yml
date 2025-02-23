@@ -1,0 +1,167 @@
+name: Go2
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: ["1.20", "1.21", "1.22", "1.23"]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Build
+        run: |
+          go build -o file-encryptor cmd/file-encryptor/main.go
+          # Verify the binary was created and make it executable (Unix-like systems)
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            ls -l file-encryptor
+            chmod +x file-encryptor
+          fi
+
+      - name: Prepare Test Files
+        shell: bash
+        run: |
+          # Create a text file with specific content
+          echo "This is a test file with special characters: !@#$%^&*()" > test.txt
+
+          # Create a binary file
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            dd if=/dev/urandom of=binary.dat bs=1024 count=100
+          else
+            fsutil file createnew binary.dat 102400
+          fi
+
+          # Create a JSON file
+          echo '{"test": "data", "number": 123}' > data.json
+
+          echo "Created test files:"
+          ls -l test.txt binary.dat data.json
+          echo "test.txt content:"
+          cat test.txt
+          echo "data.json content:"
+          cat data.json
+
+      - name: Test RSA Key Generation
+        shell: bash
+        run: |
+          ./file-encryptor --generate-keys --key-name test_key
+          if [ ! -f test_key_private_*.key ] || [ ! -f test_key_public_*.pub ]; then
+            echo "Failed to generate key pair"
+            exit 1
+          fi
+          echo "Generated RSA key pair successfully"
+          ls -l test_key_*
+
+      - name: Test RSA Encryption and Decryption - Text File
+        shell: bash
+        run: |
+          # Store original content
+          ORIGINAL_CONTENT=$(cat test.txt)
+
+          # Encrypt
+          ./file-encryptor -e -f test.txt -k test_key_public_*.pub
+          if [ ! -f test.txt.enc ]; then
+            echo "Encryption failed - no output file"
+            exit 1
+          fi
+
+          rm test.txt
+
+          # Decrypt
+          ./file-encryptor -d -f test.txt.enc -k test_key_private_*.key
+
+          # Verify content
+          DECRYPTED_CONTENT=$(cat test.txt)
+          if [ "$ORIGINAL_CONTENT" != "$DECRYPTED_CONTENT" ]; then
+            echo "Content mismatch after RSA encryption/decryption"
+            echo "Original: $ORIGINAL_CONTENT"
+            echo "Decrypted: $DECRYPTED_CONTENT"
+            exit 1
+          fi
+          echo "RSA encryption/decryption for text file verified successfully"
+
+      - name: Test Password Encryption and Decryption - JSON File
+        shell: bash
+        run: |
+          # Store original content
+          ORIGINAL_CONTENT=$(cat data.json)
+
+          # Encrypt
+          ./file-encryptor -e -f data.json -p "TestPassword123!"
+          if [ ! -f data.json.enc ]; then
+            echo "Encryption failed - no output file"
+            exit 1
+          fi
+          rm data.json
+
+          # Decrypt
+          ./file-encryptor -d -f data.json.enc -p "TestPassword123!"
+
+          # Verify content
+          DECRYPTED_CONTENT=$(cat data.json)
+          if [ "$ORIGINAL_CONTENT" != "$DECRYPTED_CONTENT" ]; then
+            echo "Content mismatch after password encryption/decryption"
+            echo "Original: $ORIGINAL_CONTENT"
+            echo "Decrypted: $DECRYPTED_CONTENT"
+            exit 1
+          fi
+          echo "Password encryption/decryption for JSON file verified successfully"
+
+      - name: Test Wrong Password Scenario
+        shell: bash
+        run: |
+          # Attempt to decrypt with wrong password
+          if ./file-encryptor -d -f data.json.enc -p "WrongPassword123!"; then
+            echo "Decryption with wrong password succeeded when it should fail"
+            exit 1
+          fi
+          echo "Wrong password test passed successfully"
+
+      - name: Test File Extension Preservation
+        shell: bash
+        run: |
+          # Create test files with different extensions
+          echo "Test content" > test.doc
+          echo "Test content" > test.pdf
+
+          # Encrypt files
+          ./file-encryptor -e -f test.doc -p "TestPassword123!"
+          ./file-encryptor -e -f test.pdf -p "TestPassword123!"
+
+          # Decrypt files
+          ./file-encryptor -d -f test.doc.enc -p "TestPassword123!"
+          ./file-encryptor -d -f test.pdf.enc -p "TestPassword123!"
+
+          # Verify extensions
+          if [ ! -f test.doc ]; then
+            echo "Failed to preserve .doc extension"
+            exit 1
+          fi
+          if [ ! -f test.pdf ]; then
+            echo "Failed to preserve .pdf extension"
+            exit 1
+          fi
+          echo "File extension preservation test passed successfully"
+
+      - name: Cleanup
+        shell: bash
+        run: |
+          rm -f test.txt test.txt.enc test.txt.dec
+          rm -f binary.dat binary.dat.enc binary.dat
+          rm -f data.json data.json.enc data.json
+          rm -f test.doc* test.pdf*
+          rm -f test_key_* key_*
+          echo "Cleanup completed"
