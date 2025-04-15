@@ -19,10 +19,10 @@ jobs:
         goarch: [amd64]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set Up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4
         with:
           go-version: "1.24" # Adjust Go version as per requirement
 
