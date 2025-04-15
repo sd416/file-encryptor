@@ -28,18 +28,29 @@ jobs:
 
       - name: Build Go Binary
         run: |
-          echo "Building for ${{ matrix.goos }}-${{ matrix.goarch }}"
+          # Determine the output binary name, adding .exe for Windows
+          BINARY_NAME="file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" == "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+
+          echo "Building for ${{ matrix.goos }}/${{ matrix.goarch }} -> ${BINARY_NAME}"
+
+          # Set environment variables for cross-compilation and build
+          # GO111MODULE=on is default now but explicit doesn't hurt
+          # CGO_ENABLED=0 is good practice for static cross-platform binaries unless CGO is required
           GO111MODULE=on CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-          go build -o file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/file-encryptor
+          go build -ldflags="-s -w" -o "${BINARY_NAME}" ./cmd/file-encryptor
+          # -ldflags="-s -w" strips debug symbols and DWARF info, making the binary smaller
+
+          # Verify the binary was created
+          ls -l "${BINARY_NAME}"
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            file-encryptor-linux-amd64
-            file-encryptor-windows-amd64.exe
-            file-encryptor-darwin-amd64
-            LICENSE
-            README.md
+            ${{ env.BINARY_NAME_WITH_EXT }} # Use the name determined in the build step
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BINARY_NAME_WITH_EXT: file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
