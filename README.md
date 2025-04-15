@@ -24,7 +24,7 @@ Example usage ensures seamless encryption and decryption without data corruption
 
 ## Installation
 
-1. Ensure you have Go installed on your system (version 1.16 or later).
+1. Ensure you have Go installed on your system (version 1.23 or later).
    - Verify with:
      ```bash
      go version
