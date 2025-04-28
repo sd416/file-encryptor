@@ -11,7 +11,9 @@ File Encryptor is a command-line tool written in Go that provides secure file en
 - Automatically preserve and restore the original file extensions
 - Detailed logging for transparency and debugging
 - Support for **all file types**: text, images (JPG, PNG), videos, spreadsheets, and more
-- Parallel processing for faster encryption and decryption of large files
+- **Concurrent processing** with worker pool for faster encryption and decryption of multiple files
+- **Graceful cancellation** with timeout support and signal handling (Ctrl+C)
+- Robust command-line interface with improved multi-file handling
 
 **File Support Note**:
 - The tool supports all file types, including:
@@ -122,6 +124,15 @@ Example:
 ./file-encryptor -d -f document.pdf.enc -p myStrongPassword123
 ```
 
+### Additional Options
+
+#### Setting a timeout:
+You can set a maximum time for the operation to complete with the timeout flag:
+```bash
+./file-encryptor -e -f large_file.mp4 -p myPassword --timeout 10m
+```
+Supported time units: s (seconds), m (minutes), h (hours)
+
 ---
 
 ## Security Notes
@@ -134,6 +145,12 @@ Example:
   - **PBKDF2** for key derivation in password-based encryption.
   - HMAC for integrity verification.
 - File extensions are preserved automatically during encryption and restored after decryption.
+
+## Performance Features
+
+- **Concurrent Processing**: The tool uses a worker pool to process multiple files in parallel
+- **Cancellation Support**: All operations can be safely cancelled with Ctrl+C
+- **Resource Management**: The program automatically limits concurrency based on the number of files
 
 ## Contributing
 
