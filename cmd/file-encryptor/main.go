@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
 
 	"file-encryptor/pkg/crypto"
 	"file-encryptor/pkg/fileops"
@@ -26,6 +31,23 @@ func main() {
 	logger := logging.NewLogger()
 	logger.LogDebug("Starting file encryptor")
 
+	// Create a context that can be cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up signal handling for graceful shutdown
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+	
+	// Handle cancellation in a separate goroutine
+	go func() {
+		select {
+		case <-signalChan:
+			logger.LogInfo("Received termination signal, shutting down gracefully...")
+			cancel()
+		}
+	}()
+
 	encrypt := flag.Bool("e", false, "Encrypt the file")
 	decrypt := flag.Bool("d", false, "Decrypt the file")
 
@@ -43,8 +65,18 @@ func main() {
 
 	generateKeys := flag.Bool("generate-keys", false, "Generate a new RSA key pair")
 	keyBaseName := flag.String("key-name", "key", "Base name for the generated key files")
+	
+	timeout := flag.Duration("timeout", 30*time.Minute, "Timeout for the entire operation")
 
 	flag.Parse()
+	
+	// Set a timeout for the entire operation
+	if *timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, *timeout)
+		defer cancel()
+		logger.LogDebug(fmt.Sprintf("Operation will timeout after %v", *timeout))
+	}
+	
 	// Add remaining arguments as files only if they don't start with "-"
 	// This prevents treating flags like "-k" as files
 	remainingArgs := flag.Args()
@@ -62,7 +94,7 @@ func main() {
 	logger.LogDebug(fmt.Sprintf("Generate Keys: %v, Key Base Name: %s", *generateKeys, *keyBaseName))
 
 	if *generateKeys && !*encrypt && len(files) == 0 {
-		if err := handleGenerateKeys(*keyBaseName, logger); err != nil {
+		if err := handleGenerateKeys(ctx, *keyBaseName, logger); err != nil {
 			logger.LogError(err.Error())
 			os.Exit(1)
 		}
@@ -82,13 +114,19 @@ func main() {
 
 	if *generateKeys && *encrypt && len(files) > 0 {
 		operation = "Encryption with key generation"
-		outputFiles, err = handleGenerateAndEncrypt(*keyBaseName, files, logger)
+		outputFiles, err = handleGenerateAndEncrypt(ctx, *keyBaseName, files, logger)
 	} else if *encrypt {
 		operation = "Encryption"
-		outputFiles, err = handleEncryption(files, key, password, logger)
+		outputFiles, err = handleEncryption(ctx, files, key, password, logger)
 	} else {
 		operation = "Decryption"
-		outputFiles, err = handleDecryption(files, key, password, logger)
+		outputFiles, err = handleDecryption(ctx, files, key, password, logger)
+	}
+
+	// Check if the operation was cancelled
+	if ctx.Err() != nil {
+		logger.LogError(fmt.Sprintf("Operation cancelled: %v", ctx.Err()))
+		os.Exit(1)
 	}
 
 	if err != nil {
@@ -139,8 +177,15 @@ func validateFlags(encrypt, decrypt bool, files []string, key, password string, 
 	return nil
 }
 
-func handleGenerateKeys(keyBaseName string, logger *logging.Logger) error {
+func handleGenerateKeys(ctx context.Context, keyBaseName string, logger *logging.Logger) error {
 	logger.LogInfo("Starting RSA key pair generation")
+
+	// Check for cancellation
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 
 	if err := crypto.GenerateRSAKeyPair(keyBaseName, logger); err != nil {
 		return fmt.Errorf("failed to generate RSA key pair: %w", err)
@@ -150,8 +195,15 @@ func handleGenerateKeys(keyBaseName string, logger *logging.Logger) error {
 	return nil
 }
 
-func handleGenerateAndEncrypt(keyBaseName string, files []string, logger *logging.Logger) ([]string, error) {
+func handleGenerateAndEncrypt(ctx context.Context, keyBaseName string, files []string, logger *logging.Logger) ([]string, error) {
 	logger.LogInfo("Starting RSA key pair generation and file encryption")
+
+	// Check for cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 
 	privateKeyName, publicKeyName, err := crypto.GenerateRSAKeyPairWithNames(keyBaseName, logger)
 	if err != nil {
@@ -163,17 +215,10 @@ func handleGenerateAndEncrypt(keyBaseName string, files []string, logger *loggin
 		return nil, fmt.Errorf("failed to create encryptor: %w", err)
 	}
 
-	outputFiles := make([]string, 0, len(files))
-	for _, file := range files {
-		if hash, err := crypto.CalculateFileHash(file); err == nil {
-			logger.LogDebug(fmt.Sprintf("Original file hash for %s: %s", file, hash))
-		}
-
-		outputFile := file + ".enc"
-		if err := fileops.EncryptFile(file, outputFile, encryptor, logger); err != nil {
-			return outputFiles, fmt.Errorf("failed to encrypt %s: %w", file, err)
-		}
-		outputFiles = append(outputFiles, outputFile)
+	// Use the process files function with the context
+	outputFiles, err := processFiles(ctx, files, true, encryptor, logger)
+	if err != nil {
+		return outputFiles, err
 	}
 
 	logger.LogInfo(fmt.Sprintf("Private key saved to: %s", privateKeyName))
@@ -212,7 +257,9 @@ func initializeCrypto(isEncryption bool, key, password string, logger *logging.L
 }
 
 // processFiles handles the common file processing logic for both encryption and decryption
+// with support for concurrent processing of multiple files
 func processFiles(
+	ctx context.Context,
 	files []string,
 	isEncryption bool,
 	cryptoProcessor interface{},
@@ -221,9 +268,37 @@ func processFiles(
 	operation := map[bool]string{true: "encryption", false: "decryption"}[isEncryption]
 	outputFiles := make([]string, 0, len(files))
 	
+	// Check for cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	
 	logger.LogInfo(fmt.Sprintf("Found %d files to process", len(files)))
 	
-	for _, file := range files {
+	// Use a worker pool for concurrent processing
+	// For small numbers of files, this might be overkill,
+	// but for many files it will provide performance benefits
+	numWorkers := 3 // Limit concurrency to avoid system overload
+	if len(files) < numWorkers {
+		numWorkers = len(files)
+	}
+	
+	// Channel for job results
+	type result struct {
+		outputFile string
+		err        error
+	}
+	resultChan := make(chan result)
+	
+	// Process files concurrently using a worker pool
+	var wg sync.WaitGroup
+	
+	// Function to process a single file
+	processFile := func(file string) {
+		defer wg.Done()
+		
 		var outputFile string
 		var processErr error
 		
@@ -242,37 +317,80 @@ func processFiles(
 			processErr = fileops.DecryptFile(file, outputFile, cryptoProcessor.(crypto.Decryptor), logger)
 		}
 		
-		if processErr != nil {
-			if !isEncryption && strings.Contains(processErr.Error(), "file integrity check failed") {
-				return outputFiles, fmt.Errorf("security error while decrypting %s: %v", file, processErr)
-			}
-			return outputFiles, fmt.Errorf("failed to %s %s: %w", operation, file, processErr)
-		}
+		// Send result through channel
+		resultChan <- result{outputFile, processErr}
+	}
+	
+	// Limit the number of concurrent goroutines with a semaphore
+	semaphore := make(chan struct{}, numWorkers)
+	
+	// Start all file processing goroutines
+	for _, file := range files {
+		wg.Add(1)
 		
-		outputFiles = append(outputFiles, outputFile)
+		// Acquire semaphore slot
+		semaphore <- struct{}{}
+		
+		go func(file string) {
+			processFile(file)
+			// Release semaphore slot when done
+			<-semaphore
+		}(file)
+	}
+	
+	// Close the results channel when all workers are done
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+	
+	// Collect results as they come in
+	for res := range resultChan {
+		if res.err != nil {
+			// Let any running goroutines finish, but we'll return the error
+			if !isEncryption && strings.Contains(res.err.Error(), "file integrity check failed") {
+				return outputFiles, fmt.Errorf("security error while decrypting: %v", res.err)
+			}
+			return outputFiles, fmt.Errorf("failed to %s: %w", operation, res.err)
+		}
+		outputFiles = append(outputFiles, res.outputFile)
 	}
 	
 	return outputFiles, nil
 }
 
-func handleEncryption(files []string, key, password string, logger *logging.Logger) ([]string, error) {
+func handleEncryption(ctx context.Context, files []string, key, password string, logger *logging.Logger) ([]string, error) {
 	logger.LogInfo("Starting file encryption")
+	
+	// Check for cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 	
 	encryptor, err := initializeCrypto(true, key, password, logger)
 	if err != nil {
 		return nil, err
 	}
 	
-	return processFiles(files, true, encryptor, logger)
+	return processFiles(ctx, files, true, encryptor, logger)
 }
 
-func handleDecryption(files []string, key, password string, logger *logging.Logger) ([]string, error) {
+func handleDecryption(ctx context.Context, files []string, key, password string, logger *logging.Logger) ([]string, error) {
 	logger.LogInfo("Starting file decryption")
+	
+	// Check for cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 	
 	decryptor, err := initializeCrypto(false, key, password, logger)
 	if err != nil {
 		return nil, err
 	}
 	
-	return processFiles(files, false, decryptor, logger)
+	return processFiles(ctx, files, false, decryptor, logger)
 }
