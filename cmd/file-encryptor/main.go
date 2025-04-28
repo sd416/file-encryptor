@@ -33,22 +33,33 @@ func main() {
 	flag.Var(&files, "file", "Files to encrypt or decrypt (can be specified multiple times)")
 	flag.Var(&files, "f", "Files to encrypt or decrypt (shorthand)")
 
-	key := flag.String("key", "", "Path to the key file")
-	flag.StringVar(key, "k", "", "Path to the key file (shorthand)")
+	var key string
+	flag.StringVar(&key, "key", "", "Path to the key file")
+	flag.StringVar(&key, "k", "", "Path to the key file (shorthand)")
 
-	password := flag.String("password", "", "Password for encryption/decryption")
-	flag.StringVar(password, "p", "", "Password for encryption/decryption (shorthand)")
+	var password string
+	flag.StringVar(&password, "password", "", "Password for encryption/decryption")
+	flag.StringVar(&password, "p", "", "Password for encryption/decryption (shorthand)")
 
 	generateKeys := flag.Bool("generate-keys", false, "Generate a new RSA key pair")
 	keyBaseName := flag.String("key-name", "key", "Base name for the generated key files")
 
 	flag.Parse()
-	// Add handling for remaining arguments
+	// Add remaining arguments as files only if they don't start with "-"
+	// This prevents treating flags like "-k" as files
 	remainingArgs := flag.Args()
-	if len(remainingArgs) > 0 {
-		files = append(files, remainingArgs...)
+	for _, arg := range remainingArgs {
+		if !strings.HasPrefix(arg, "-") {
+			files = append(files, arg)
+		}
 	}
 	logger.LogDebug("Parsed command line flags")
+	
+	// Debug flag values
+	logger.LogDebug(fmt.Sprintf("Encrypt: %v, Decrypt: %v", *encrypt, *decrypt))
+	logger.LogDebug(fmt.Sprintf("Key: '%s', Password: '%s'", key, password))
+	logger.LogDebug(fmt.Sprintf("Files: %v", files))
+	logger.LogDebug(fmt.Sprintf("Generate Keys: %v, Key Base Name: %s", *generateKeys, *keyBaseName))
 
 	if *generateKeys && !*encrypt && len(files) == 0 {
 		if err := handleGenerateKeys(*keyBaseName, logger); err != nil {
@@ -59,7 +70,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if err := validateFlags(*encrypt, *decrypt, files, *key, *password, *generateKeys); err != nil {
+	if err := validateFlags(*encrypt, *decrypt, files, key, password, *generateKeys); err != nil {
 		logger.LogError(err.Error())
 		flag.Usage()
 		os.Exit(1)
@@ -74,10 +85,10 @@ func main() {
 		outputFiles, err = handleGenerateAndEncrypt(*keyBaseName, files, logger)
 	} else if *encrypt {
 		operation = "Encryption"
-		outputFiles, err = handleEncryption(files, *key, *password, logger)
+		outputFiles, err = handleEncryption(files, key, password, logger)
 	} else {
 		operation = "Decryption"
-		outputFiles, err = handleDecryption(files, *key, *password, logger)
+		outputFiles, err = handleDecryption(files, key, password, logger)
 	}
 
 	if err != nil {
@@ -172,65 +183,96 @@ func handleGenerateAndEncrypt(keyBaseName string, files []string, logger *loggin
 	return outputFiles, nil
 }
 
-func handleEncryption(files []string, key, password string, logger *logging.Logger) ([]string, error) {
-	logger.LogInfo("Starting file encryption")
-	var encryptor crypto.Encryptor
+// initializeCrypto initializes either an encryptor or decryptor based on the provided parameters
+func initializeCrypto(isEncryption bool, key, password string, logger *logging.Logger) (interface{}, error) {
+	var result interface{}
 	var err error
+	operationType := map[bool]string{true: "encryptor", false: "decryptor"}[isEncryption]
 
 	if key != "" {
-		encryptor, err = crypto.NewRSAEncryptor(key)
+		if isEncryption {
+			result, err = crypto.NewRSAEncryptor(key)
+		} else {
+			result, err = crypto.NewRSADecryptor(key)
+		}
 	} else {
-		encryptor, err = crypto.NewPasswordEncryptor(password)
+		if isEncryption {
+			result, err = crypto.NewPasswordEncryptor(password)
+		} else {
+			result, err = crypto.NewPasswordDecryptor(password)
+		}
 	}
-	logger.LogDebugf("Initialized encryptor: %T", encryptor)
-
+	
 	if err != nil {
-		return nil, fmt.Errorf("error initializing encryptor: %v", err)
+		return nil, fmt.Errorf("error initializing %s: %v", operationType, err)
 	}
+	
+	logger.LogDebugf("Initialized %s: %T", operationType, result)
+	return result, nil
+}
 
+// processFiles handles the common file processing logic for both encryption and decryption
+func processFiles(
+	files []string,
+	isEncryption bool,
+	cryptoProcessor interface{},
+	logger *logging.Logger,
+) ([]string, error) {
+	operation := map[bool]string{true: "encryption", false: "decryption"}[isEncryption]
 	outputFiles := make([]string, 0, len(files))
+	
+	logger.LogInfo(fmt.Sprintf("Found %d files to process", len(files)))
+	
 	for _, file := range files {
-		if hash, err := crypto.CalculateFileHash(file); err == nil {
-			logger.LogDebug(fmt.Sprintf("Original file hash for %s: %s", file, hash))
+		var outputFile string
+		var processErr error
+		
+		logger.LogInfo(fmt.Sprintf("Starting %s of file: %s", strings.ToLower(operation), file))
+		
+		if isEncryption {
+			// For encryption operations
+			if hash, err := crypto.CalculateFileHash(file); err == nil {
+				logger.LogDebug(fmt.Sprintf("Original file hash for %s: %s", file, hash))
+			}
+			outputFile = file + ".enc"
+			processErr = fileops.EncryptFile(file, outputFile, cryptoProcessor.(crypto.Encryptor), logger)
+		} else {
+			// For decryption operations
+			outputFile = strings.TrimSuffix(file, ".enc")
+			processErr = fileops.DecryptFile(file, outputFile, cryptoProcessor.(crypto.Decryptor), logger)
 		}
-
-		outputFile := file + ".enc"
-		if err := fileops.EncryptFile(file, outputFile, encryptor, logger); err != nil {
-			return outputFiles, fmt.Errorf("failed to encrypt %s: %w", file, err)
+		
+		if processErr != nil {
+			if !isEncryption && strings.Contains(processErr.Error(), "file integrity check failed") {
+				return outputFiles, fmt.Errorf("security error while decrypting %s: %v", file, processErr)
+			}
+			return outputFiles, fmt.Errorf("failed to %s %s: %w", operation, file, processErr)
 		}
+		
 		outputFiles = append(outputFiles, outputFile)
 	}
-
+	
 	return outputFiles, nil
+}
+
+func handleEncryption(files []string, key, password string, logger *logging.Logger) ([]string, error) {
+	logger.LogInfo("Starting file encryption")
+	
+	encryptor, err := initializeCrypto(true, key, password, logger)
+	if err != nil {
+		return nil, err
+	}
+	
+	return processFiles(files, true, encryptor, logger)
 }
 
 func handleDecryption(files []string, key, password string, logger *logging.Logger) ([]string, error) {
 	logger.LogInfo("Starting file decryption")
-	var decryptor crypto.Decryptor
-	var err error
-
-	if key != "" {
-		decryptor, err = crypto.NewRSADecryptor(key)
-	} else {
-		decryptor, err = crypto.NewPasswordDecryptor(password)
-	}
-	logger.LogDebugf("Initialized decryptor: %T", decryptor)
-
+	
+	decryptor, err := initializeCrypto(false, key, password, logger)
 	if err != nil {
-		return nil, fmt.Errorf("error initializing decryptor: %v", err)
+		return nil, err
 	}
-
-	outputFiles := make([]string, 0, len(files))
-	for _, file := range files {
-		outputFile := strings.TrimSuffix(file, ".enc")
-		if err := fileops.DecryptFile(file, outputFile, decryptor, logger); err != nil {
-			if strings.Contains(err.Error(), "file integrity check failed") {
-				return outputFiles, fmt.Errorf("security error while decrypting %s: %v", file, err)
-			}
-			return outputFiles, fmt.Errorf("failed to decrypt %s: %w", file, err)
-		}
-		outputFiles = append(outputFiles, outputFile)
-	}
-
-	return outputFiles, nil
+	
+	return processFiles(files, false, decryptor, logger)
 }
