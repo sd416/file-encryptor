@@ -33,12 +33,14 @@ jobs:
 
       - name: Build CLI version
         run: |
-          go build -ldflags "-X main.Version=ci -X main.GitCommit=${GITHUB_SHA::8} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o file-encryptor cmd/file-encryptor/main.go cmd/file-encryptor/cli.go cmd/file-encryptor/config.go cmd/file-encryptor/handlers.go cmd/file-encryptor/web_stub.go
+          make build
+          cp bin/file-encryptor ./file-encryptor
           chmod +x file-encryptor
 
       - name: Build Web UI version
         run: |
-          go build -tags web -ldflags "-X main.Version=ci -X main.GitCommit=${GITHUB_SHA::8} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o file-encryptor-web cmd/file-encryptor/main.go cmd/file-encryptor/cli.go cmd/file-encryptor/config.go cmd/file-encryptor/handlers.go cmd/file-encryptor/web.go
+          make build-web
+          cp bin/file-encryptor-web ./file-encryptor-web
           chmod +x file-encryptor-web
 
       - name: Run unit tests
