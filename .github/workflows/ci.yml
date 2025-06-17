@@ -1,17 +1,13 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  release:
-    types: [ published ]
 
 env:
   GO_VERSION: '1.23'
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   test:
@@ -41,10 +37,7 @@ jobs:
       run: go mod download
       
     - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
-      
-    - name: Generate coverage report
-      run: go tool cover -html=coverage.out -o coverage.html
+      run: go test -v -race ./...
 
   lint:
     name: Lint
@@ -70,164 +63,22 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, lint]
     
-    strategy:
-      matrix:
-        goos: [linux, windows, darwin]
-        goarch: [amd64, arm64]
-        exclude:
-          - goos: windows
-            goarch: arm64
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
         
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         
-    - name: Get build info
-      id: build_info
+    - name: Build CLI version
+      run: make build
+        
+    - name: Build Web UI version
+      run: make build-web
+        
+    - name: Verify builds
       run: |
-        echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        echo "commit=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
-        echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
-        
-    - name: Build binary
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: 0
-      run: |
-        BINARY_NAME=file-encryptor
-        if [ "$GOOS" = "windows" ]; then
-          BINARY_NAME="${BINARY_NAME}.exe"
-        fi
-        
-        go build \
-          -ldflags "-X main.Version=${{ steps.build_info.outputs.version }} -X main.GitCommit=${{ steps.build_info.outputs.commit }} -X main.BuildTime=${{ steps.build_info.outputs.build_time }}" \
-          -o "${BINARY_NAME}" \
-          cmd/file-encryptor/*.go
-          
-        # Create archive
-        if [ "$GOOS" = "windows" ]; then
-          zip "file-encryptor-${GOOS}-${GOARCH}.zip" "${BINARY_NAME}" file-encryptor.yaml README.md LICENSE
-        else
-          tar -czf "file-encryptor-${GOOS}-${GOARCH}.tar.gz" "${BINARY_NAME}" file-encryptor.yaml README.md LICENSE
-        fi
-        
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: file-encryptor-${{ matrix.goos }}-${{ matrix.goarch }}.*
-
-  docker:
-    name: Build Docker Image
-    runs-on: ubuntu-latest
-    needs: [test, lint]
-    if: github.event_name != 'pull_request'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-          type=sha
-          
-    - name: Get build info
-      id: build_info
-      run: |
-        echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        echo "commit=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
-        echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
-        
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        build-args: |
-          VERSION=${{ steps.build_info.outputs.version }}
-          GIT_COMMIT=${{ steps.build_info.outputs.commit }}
-          BUILD_TIME=${{ steps.build_info.outputs.build_time }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    needs: [build, docker]
-    if: github.event_name == 'release'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Download all artifacts
-      uses: actions/download-artifact@v3
-      
-    - name: Create release assets
-      run: |
-        mkdir -p release-assets
-        find . -name "file-encryptor-*" -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-assets/ \;
-        
-    - name: Upload release assets
-      uses: softprops/action-gh-release@v1
-      with:
-        files: release-assets/*
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  benchmark:
-    name: Benchmark
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Run benchmarks
-      run: |
-        go test -bench=. -benchmem ./... | tee benchmark.txt
-        
-    - name: Upload benchmark results
-      uses: actions/upload-artifact@v3
-      with:
-        name: benchmark-results
-        path: benchmark.txt
+        ./bin/file-encryptor --version
+        ./bin/file-encryptor-web --version
