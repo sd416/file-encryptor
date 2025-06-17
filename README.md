@@ -1,8 +1,8 @@
 # File Encryptor
 
-File Encryptor is a powerful command-line tool written in Go that provides secure file encryption and decryption using either RSA key pairs or password-based encryption. It now features a **modern web UI** and supports **all file types**, including text files, media files (e.g., images, videos), and office documents (e.g., XLS, DOCX, PDF).
+File Encryptor is a powerful command-line tool written in Go that provides secure file encryption and decryption using either RSA key pairs or password-based encryption. It features a modern web UI and supports all file types, including text files, media files, and office documents.
 
-## 🌟 Features
+## Features
 
 ### Core Encryption Features
 - Encrypt files using RSA public keys or passwords
@@ -10,21 +10,21 @@ File Encryptor is a powerful command-line tool written in Go that provides secur
 - Hybrid encryption: RSA for key exchange, AES for file content
 - Support for both PEM and OpenSSH format keys
 - Automatically preserve and restore the original file extensions
-- Support for **all file types**: text, images (JPG, PNG), videos, spreadsheets, and more
-- **Concurrent processing** with worker pool for faster encryption and decryption of multiple files
-- **Graceful cancellation** with timeout support and signal handling (Ctrl+C)
+- Support for all file types: text, images, videos, spreadsheets, and more
+- Concurrent processing with worker pool for faster encryption and decryption of multiple files
+- Graceful cancellation with timeout support and signal handling (Ctrl+C)
 
-### 🌐 Web UI Features
-- **Modern Web Interface** - User-friendly drag-and-drop interface
-- **Real-time Progress** - Live status updates and progress tracking
-- **Responsive Design** - Works on desktop, tablet, and mobile devices
-- **Dark/Light Theme** - Toggle between themes with preference persistence
-- **File Management** - Drag & drop multiple files for batch operations
-- **Key Generation** - Generate RSA key pairs directly in the browser
-- **Secure API** - RESTful API with CORS support and security headers
-- **No Dependencies** - Single binary with embedded web assets
+### Web UI Features
+- Modern web interface with drag-and-drop file support
+- Real-time progress tracking and status updates
+- Responsive design for desktop, tablet, and mobile devices
+- Dark/light theme toggle with preference persistence
+- Batch file operations with drag & drop
+- RSA key pair generation directly in the browser
+- Secure REST API with CORS support and security headers
+- Single binary deployment with embedded web assets
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
 - Go 1.23 or later
@@ -47,9 +47,9 @@ File Encryptor is a powerful command-line tool written in Go that provides secur
    make build-web
    ```
 
-## 📖 Usage
+## Usage
 
-### 🌐 Web UI Mode
+### Web UI Mode
 
 Start the web server:
 ```bash
@@ -63,17 +63,17 @@ Start the web server:
 ./bin/file-encryptor-web --web --web-tls --cert-file cert.pem --key-file key.pem
 ```
 
-Then open your browser to `http://localhost:8080` and enjoy the modern interface!
+Then open your browser to `http://localhost:8080` for the web interface.
 
 #### Web UI Features:
-- 📁 **Drag & Drop**: Simply drag files onto the interface
-- 🔒 **Encrypt/Decrypt**: Choose password or key file authentication
-- 🔑 **Generate Keys**: Create RSA key pairs and download them
-- 📊 **Progress Tracking**: Real-time status updates
-- 🌙 **Theme Toggle**: Switch between dark and light modes
-- 📱 **Mobile Friendly**: Responsive design for all devices
+- **Drag & Drop**: Simply drag files onto the interface
+- **Encrypt/Decrypt**: Choose password or key file authentication
+- **Generate Keys**: Create RSA key pairs and download them
+- **Progress Tracking**: Real-time status updates
+- **Theme Toggle**: Switch between dark and light modes
+- **Mobile Friendly**: Responsive design for all devices
 
-### 💻 Command Line Interface
+### Command Line Interface
 
 #### Key Generation
 ```bash
@@ -137,7 +137,7 @@ Then open your browser to `http://localhost:8080` and enjoy the modern interface
 ./bin/file-encryptor -e -f file.txt -p password --config custom-config.yaml
 ```
 
-## 🛠️ Development
+## Development
 
 ### Build Targets
 ```bash
@@ -164,7 +164,7 @@ file-encryptor/
 └── README.md            # This file
 ```
 
-## 🔒 Security
+## Security
 
 ### Encryption Standards
 - **AES-256-GCM** for file encryption (authenticated encryption)
@@ -187,9 +187,9 @@ file-encryptor/
 - Regularly update to the latest version
 - Backup important files before encryption
 
-## 🌍 Supported File Types
+## Supported File Types
 
-The tool supports **all file types**, including:
+The tool supports all file types, including:
 - **Text**: TXT, CSV, JSON, XML, YAML
 - **Images**: JPG, PNG, GIF, BMP, TIFF, SVG
 - **Videos**: MP4, AVI, MOV, MKV, WebM
@@ -199,7 +199,7 @@ The tool supports **all file types**, including:
 - **Code**: JS, Python, Go, Java, C++
 - **Any other binary or text file**
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please:
 
@@ -215,21 +215,17 @@ Contributions are welcome! Please:
 - Update documentation as needed
 - Ensure all tests pass before submitting
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This tool is provided as-is, without any warranties. Always ensure you have backups of your important files before encryption. Test the tool with non-critical files first to ensure it meets your requirements.
 
-## 🆘 Support
+## Support
 
-- 📖 **Documentation**: Check this README and inline help (`--help`)
-- 🐛 **Issues**: Report bugs via GitHub Issues
-- 💡 **Feature Requests**: Submit enhancement ideas via GitHub Issues
-- 🔒 **Security**: Report security issues privately via email
-
----
-
-**Made with ❤️ in Go | Secure • Fast • User-Friendly**
+- **Documentation**: Check this README and inline help (`--help`)
+- **Issues**: Report bugs via GitHub Issues
+- **Feature Requests**: Submit enhancement ideas via GitHub Issues
+- **Security**: Report security issues privately via email
