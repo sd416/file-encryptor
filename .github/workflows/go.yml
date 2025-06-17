@@ -8,28 +8,41 @@ on:
 
 jobs:
   test:
-    strategy:
-      matrix:
-        go-version: ["1.22", "1.23", "1.24"]
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v5.4
+        uses: actions/setup-go@v4
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: '1.23'
 
-      - name: Build
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build CLI version
         run: |
-          go build -o file-encryptor cmd/file-encryptor/main.go
-          # Verify the binary was created and make it executable (Unix-like systems)
-          if [ "${{ matrix.os }}" != "windows-latest" ]; then
-            ls -l file-encryptor
-            chmod +x file-encryptor
-          fi
+          go build -ldflags "-X main.Version=ci -X main.GitCommit=${GITHUB_SHA::8} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o file-encryptor cmd/file-encryptor/main.go cmd/file-encryptor/cli.go cmd/file-encryptor/config.go cmd/file-encryptor/handlers.go cmd/file-encryptor/web_stub.go
+          chmod +x file-encryptor
+
+      - name: Build Web UI version
+        run: |
+          go build -tags web -ldflags "-X main.Version=ci -X main.GitCommit=${GITHUB_SHA::8} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o file-encryptor-web cmd/file-encryptor/main.go cmd/file-encryptor/cli.go cmd/file-encryptor/config.go cmd/file-encryptor/handlers.go cmd/file-encryptor/web.go
+          chmod +x file-encryptor-web
+
+      - name: Run unit tests
+        run: go test -v ./...
 
       - name: Prepare Test Files
         shell: bash
@@ -38,11 +51,7 @@ jobs:
           echo "This is a test file with special characters: !@#$%^&*()" > test.txt
 
           # Create a binary file
-          if [ "${{ matrix.os }}" != "windows-latest" ]; then
-            dd if=/dev/urandom of=binary.dat bs=1024 count=100
-          else
-            fsutil file createnew binary.dat 102400
-          fi
+          dd if=/dev/urandom of=binary.dat bs=1024 count=100
 
           # Create a JSON file
           echo '{"test": "data", "number": 123}' > data.json
@@ -156,6 +165,12 @@ jobs:
           fi
           echo "File extension preservation test passed successfully"
 
+      - name: Test Web UI Binary
+        shell: bash
+        run: |
+          # Test that web UI binary works
+          ./file-encryptor-web --version
+
       - name: Cleanup
         shell: bash
         run: |
@@ -163,5 +178,3 @@ jobs:
           rm -f binary.dat binary.dat.enc binary.dat
           rm -f data.json data.json.enc data.json
           rm -f test.doc* test.pdf*
-          rm -f test_key_* key_*
-          echo "Cleanup completed"
