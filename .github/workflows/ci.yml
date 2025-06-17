@@ -45,19 +45,6 @@ jobs:
       
     - name: Generate coverage report
       run: go tool cover -html=coverage.out -o coverage.html
-      
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
-        
-    - name: Upload coverage artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: coverage-report
-        path: coverage.html
 
   lint:
     name: Lint
