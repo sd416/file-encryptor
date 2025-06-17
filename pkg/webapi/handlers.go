@@ -9,7 +9,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -21,15 +20,15 @@ import (
 
 // APIHandlers contains all the API handlers
 type APIHandlers struct {
-	config     interface{} // Will be *Config from main package
-	logger     *logging.Logger
-	operations map[string]*Operation
-	opMutex    sync.RWMutex
-	upgrader   websocket.Upgrader
-	clients    map[string]*websocket.Conn
+	config      interface{} // Will be *Config from main package
+	logger      *logging.Logger
+	operations  map[string]*Operation
+	opMutex     sync.RWMutex
+	upgrader    websocket.Upgrader
+	clients     map[string]*websocket.Conn
 	clientMutex sync.RWMutex
-	startTime  time.Time
-	totalOps   int
+	startTime   time.Time
+	totalOps    int
 }
 
 // Operation represents an ongoing operation
@@ -99,7 +98,7 @@ func (h *APIHandlers) HandleEncrypt(c *gin.Context) {
 	// Extract parameters
 	method := c.PostForm("method")
 	password := c.PostForm("password")
-	
+
 	if method == "" {
 		method = "password" // Default to password
 	}
@@ -116,7 +115,7 @@ func (h *APIHandlers) HandleEncrypt(c *gin.Context) {
 	// Create operation
 	opID := h.generateOperationID()
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	operation := &Operation{
 		ID:        opID,
 		Status:    "pending",
@@ -176,7 +175,7 @@ func (h *APIHandlers) HandleDecrypt(c *gin.Context) {
 	// Extract parameters
 	method := c.PostForm("method")
 	password := c.PostForm("password")
-	
+
 	if method == "" {
 		method = "password" // Default to password
 	}
@@ -193,7 +192,7 @@ func (h *APIHandlers) HandleDecrypt(c *gin.Context) {
 	// Create operation
 	opID := h.generateOperationID()
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	operation := &Operation{
 		ID:        opID,
 		Status:    "pending",
@@ -257,7 +256,7 @@ func (h *APIHandlers) HandleGenerateKeys(c *gin.Context) {
 
 	// TODO: Implement actual key generation
 	// This would call the existing key generation logic
-	
+
 	c.JSON(http.StatusOK, KeyPairResponse{
 		PrivateKey:  "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----",
 		PublicKey:   "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----",
@@ -272,7 +271,7 @@ func (h *APIHandlers) HandleGenerateKeys(c *gin.Context) {
 func (h *APIHandlers) HandleGetConfig(c *gin.Context) {
 	// TODO: Convert config to ConfigResponse
 	// This would access the actual config from the main package
-	
+
 	c.JSON(http.StatusOK, ConfigResponse{
 		MaxWorkers:          4,
 		ChunkSize:           65536,
@@ -314,11 +313,11 @@ func (h *APIHandlers) HandleGetStatus(c *gin.Context) {
 // HandleGetOperation returns the status of a specific operation
 func (h *APIHandlers) HandleGetOperation(c *gin.Context) {
 	opID := c.Param("id")
-	
+
 	h.opMutex.RLock()
 	operation, exists := h.operations[opID]
 	h.opMutex.RUnlock()
-	
+
 	if !exists {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error:   "Operation Not Found",
@@ -389,9 +388,9 @@ func (h *APIHandlers) broadcastProgress(update ProgressUpdate) {
 // processEncryption handles the actual encryption process
 func (h *APIHandlers) processEncryption(operation *Operation, files []*multipart.FileHeader, method, password string) {
 	h.logger.LogInfo(fmt.Sprintf("Starting encryption operation: %s", operation.ID))
-	
+
 	operation.Status = "processing"
-	
+
 	for i, fileHeader := range files {
 		select {
 		case <-operation.Context.Done():
@@ -405,7 +404,7 @@ func (h *APIHandlers) processEncryption(operation *Operation, files []*multipart
 
 		// Update progress
 		operation.Progress = float64(i) / float64(len(files))
-		
+
 		// Broadcast progress
 		h.broadcastProgress(ProgressUpdate{
 			OperationID:   operation.ID,
@@ -420,7 +419,7 @@ func (h *APIHandlers) processEncryption(operation *Operation, files []*multipart
 		// Process file (placeholder - would call actual encryption logic)
 		result := h.processFileEncryption(fileHeader, method, password)
 		operation.Files = append(operation.Files, result)
-		
+
 		// Small delay to simulate processing
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -448,9 +447,9 @@ func (h *APIHandlers) processEncryption(operation *Operation, files []*multipart
 // processDecryption handles the actual decryption process
 func (h *APIHandlers) processDecryption(operation *Operation, files []*multipart.FileHeader, method, password string) {
 	h.logger.LogInfo(fmt.Sprintf("Starting decryption operation: %s", operation.ID))
-	
+
 	operation.Status = "processing"
-	
+
 	for i, fileHeader := range files {
 		select {
 		case <-operation.Context.Done():
@@ -464,7 +463,7 @@ func (h *APIHandlers) processDecryption(operation *Operation, files []*multipart
 
 		// Update progress
 		operation.Progress = float64(i) / float64(len(files))
-		
+
 		// Broadcast progress
 		h.broadcastProgress(ProgressUpdate{
 			OperationID:   operation.ID,
@@ -479,7 +478,7 @@ func (h *APIHandlers) processDecryption(operation *Operation, files []*multipart
 		// Process file (placeholder - would call actual decryption logic)
 		result := h.processFileDecryption(fileHeader, method, password)
 		operation.Files = append(operation.Files, result)
-		
+
 		// Small delay to simulate processing
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -532,7 +531,7 @@ func (h *APIHandlers) processFileEncryption(fileHeader *multipart.FileHeader, me
 	// TODO: Call actual encryption logic here
 	// For now, just simulate success
 	outputName := fileHeader.Filename + ".enc"
-	
+
 	return FileResult{
 		OriginalName: fileHeader.Filename,
 		OutputName:   outputName,
@@ -574,7 +573,7 @@ func (h *APIHandlers) processFileDecryption(fileHeader *multipart.FileHeader, me
 	if filepath.Ext(outputName) == ".enc" {
 		outputName = outputName[:len(outputName)-4] // Remove .enc extension
 	}
-	
+
 	return FileResult{
 		OriginalName: fileHeader.Filename,
 		OutputName:   outputName,

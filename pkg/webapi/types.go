@@ -13,7 +13,7 @@ type FileData struct {
 // EncryptRequest represents a request to encrypt files
 type EncryptRequest struct {
 	Files    []FileData     `json:"files"`
-	Method   string         `json:"method"`   // "password" or "key"
+	Method   string         `json:"method"` // "password" or "key"
 	Password string         `json:"password,omitempty"`
 	KeyData  string         `json:"keyData,omitempty"`
 	Options  EncryptOptions `json:"options"`
@@ -22,7 +22,7 @@ type EncryptRequest struct {
 // DecryptRequest represents a request to decrypt files
 type DecryptRequest struct {
 	Files    []FileData     `json:"files"`
-	Method   string         `json:"method"`   // "password" or "key"
+	Method   string         `json:"method"` // "password" or "key"
 	Password string         `json:"password,omitempty"`
 	KeyData  string         `json:"keyData,omitempty"`
 	Options  DecryptOptions `json:"options"`
@@ -57,13 +57,13 @@ type FileResult struct {
 
 // OperationResponse represents the response from an operation
 type OperationResponse struct {
-	ID       string       `json:"id"`
-	Status   string       `json:"status"`   // "pending", "processing", "completed", "error"
-	Progress float64      `json:"progress"` // 0.0 to 1.0
-	Files    []FileResult `json:"files"`
-	Error    string       `json:"error,omitempty"`
-	StartedAt time.Time   `json:"startedAt"`
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	ID          string       `json:"id"`
+	Status      string       `json:"status"`   // "pending", "processing", "completed", "error"
+	Progress    float64      `json:"progress"` // 0.0 to 1.0
+	Files       []FileResult `json:"files"`
+	Error       string       `json:"error,omitempty"`
+	StartedAt   time.Time    `json:"startedAt"`
+	CompletedAt *time.Time   `json:"completedAt,omitempty"`
 }
 
 // ProgressUpdate represents a real-time progress update
@@ -95,12 +95,12 @@ type ConfigResponse struct {
 
 // StatusResponse represents server status
 type StatusResponse struct {
-	Status      string    `json:"status"`
-	Version     string    `json:"version"`
-	Uptime      string    `json:"uptime"`
-	ActiveOps   int       `json:"activeOperations"`
-	TotalOps    int       `json:"totalOperations"`
-	ServerTime  time.Time `json:"serverTime"`
+	Status     string    `json:"status"`
+	Version    string    `json:"version"`
+	Uptime     string    `json:"uptime"`
+	ActiveOps  int       `json:"activeOperations"`
+	TotalOps   int       `json:"totalOperations"`
+	ServerTime time.Time `json:"serverTime"`
 }
 
 // ErrorResponse represents an API error
@@ -113,10 +113,10 @@ type ErrorResponse struct {
 
 // KeyPairResponse represents generated RSA keys
 type KeyPairResponse struct {
-	PrivateKey  string `json:"privateKey"`
-	PublicKey   string `json:"publicKey"`
-	PrivateFile string `json:"privateFile"`
-	PublicFile  string `json:"publicFile"`
-	KeySize     int    `json:"keySize"`
+	PrivateKey  string    `json:"privateKey"`
+	PublicKey   string    `json:"publicKey"`
+	PrivateFile string    `json:"privateFile"`
+	PublicFile  string    `json:"publicFile"`
+	KeySize     int       `json:"keySize"`
 	GeneratedAt time.Time `json:"generatedAt"`
 }

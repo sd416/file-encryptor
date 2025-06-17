@@ -31,12 +31,12 @@ func SecurityHeaders() gin.HandlerFunc {
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'")
-		
+
 		// Only add HSTS in production with HTTPS
 		if c.Request.TLS != nil {
 			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
-		
+
 		c.Next()
 	})
 }
@@ -78,11 +78,11 @@ func RateLimiter() gin.HandlerFunc {
 	// Simple in-memory rate limiter
 	// In production, use Redis or similar
 	clients := make(map[string][]time.Time)
-	
+
 	return gin.HandlerFunc(func(c *gin.Context) {
 		clientIP := c.ClientIP()
 		now := time.Now()
-		
+
 		// Clean old entries (older than 1 minute)
 		if requests, exists := clients[clientIP]; exists {
 			var validRequests []time.Time
@@ -93,7 +93,7 @@ func RateLimiter() gin.HandlerFunc {
 			}
 			clients[clientIP] = validRequests
 		}
-		
+
 		// Check rate limit (60 requests per minute)
 		if len(clients[clientIP]) >= 60 {
 			c.JSON(http.StatusTooManyRequests, ErrorResponse{
@@ -104,7 +104,7 @@ func RateLimiter() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		
+
 		// Add current request
 		clients[clientIP] = append(clients[clientIP], now)
 		c.Next()
@@ -123,7 +123,7 @@ func FileSizeLimit(maxSize int64) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		
+
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSize)
 		c.Next()
 	})
@@ -133,14 +133,14 @@ func FileSizeLimit(maxSize int64) gin.HandlerFunc {
 func ValidateContentType(expectedTypes ...string) gin.HandlerFunc {
 	return gin.HandlerFunc(func(c *gin.Context) {
 		contentType := c.GetHeader("Content-Type")
-		
+
 		for _, expectedType := range expectedTypes {
 			if strings.Contains(contentType, expectedType) {
 				c.Next()
 				return
 			}
 		}
-		
+
 		c.JSON(http.StatusUnsupportedMediaType, ErrorResponse{
 			Error:   "Unsupported Media Type",
 			Code:    http.StatusUnsupportedMediaType,

@@ -131,17 +131,17 @@ func (l *Logger) SetLogFormatFromString(format string) {
 func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
 	newLogger := *l
 	newLogger.fields = make(map[string]interface{})
-	
+
 	// Copy existing fields
 	for k, v := range l.fields {
 		newLogger.fields[k] = v
 	}
-	
+
 	// Add new fields
 	for k, v := range fields {
 		newLogger.fields[k] = v
 	}
-	
+
 	return &newLogger
 }
 
@@ -262,7 +262,7 @@ func (l *Logger) writeLog(level LogLevel, message string, extraFields map[string
 func (l *Logger) formatTextLog(level LogLevel, message string) string {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	levelStr := l.levelToString(level)
-	
+
 	var fieldsStr string
 	if len(l.fields) > 0 {
 		var fieldPairs []string

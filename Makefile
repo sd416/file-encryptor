@@ -15,14 +15,14 @@ all: build
 build:
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BUILD_DIR)
-	sudo go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) cmd/file-encryptor/*.go
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) cmd/file-encryptor/main.go cmd/file-encryptor/cli.go cmd/file-encryptor/config.go cmd/file-encryptor/handlers.go cmd/file-encryptor/web_stub.go
 	@echo "Built $(BUILD_DIR)/$(BINARY_NAME)"
 
 # Build with web UI
 build-web:
 	@echo "Building $(BINARY_NAME) with web UI..."
 	@mkdir -p $(BUILD_DIR)
-	sudo go build -tags web $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-web cmd/file-encryptor/*.go
+	go build -tags web $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-web cmd/file-encryptor/main.go cmd/file-encryptor/cli.go cmd/file-encryptor/config.go cmd/file-encryptor/handlers.go cmd/file-encryptor/web.go
 	@echo "Built $(BUILD_DIR)/$(BINARY_NAME)-web"
 
 # Run tests

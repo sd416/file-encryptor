@@ -217,12 +217,12 @@ func containsSecurityError(err error) bool {
 
 // contains checks if a string contains a substring (case-insensitive)
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		   (s == substr || 
-		    len(s) > len(substr) && 
-		    (s[:len(substr)] == substr || 
-		     s[len(s)-len(substr):] == substr || 
-		     containsAt(s, substr)))
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			len(s) > len(substr) &&
+				(s[:len(substr)] == substr ||
+					s[len(s)-len(substr):] == substr ||
+					containsAt(s, substr)))
 }
 
 // containsAt checks if substr exists anywhere in s
