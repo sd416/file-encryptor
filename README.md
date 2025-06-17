@@ -26,14 +26,33 @@ File Encryptor is a powerful command-line tool written in Go that provides secur
 
 ## Installation
 
-### Prerequisites
+### Docker (Recommended)
+
+The easiest way to use File Encryptor is with Docker:
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/sd416/file-encryptor:latest
+
+# Encrypt a file
+docker run --rm -v $(pwd):/data ghcr.io/sd416/file-encryptor:latest -e -f myfile.txt -p "mypassword"
+
+# Decrypt a file
+docker run --rm -v $(pwd):/data ghcr.io/sd416/file-encryptor:latest -d -f myfile.txt.enc -p "mypassword"
+```
+
+📖 **See [DOCKER.md](DOCKER.md) for complete Docker usage guide**
+
+### Build from Source
+
+#### Prerequisites
 - Go 1.23 or later
 - Git
 
-### Build from Source
+#### Steps
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/file-encryptor.git
+   git clone https://github.com/sd416/file-encryptor.git
    cd file-encryptor
    ```
 

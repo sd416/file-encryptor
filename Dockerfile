@@ -26,7 +26,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME}" \
     -a -installsuffix cgo \
     -o file-encryptor \
-    cmd/file-encryptor/*.go
+    ./cmd/file-encryptor
 
 # Final stage - minimal runtime image
 FROM alpine:latest
