@@ -1,160 +1,219 @@
 # File Encryptor
 
-File Encryptor is a command-line tool written in Go that provides secure file encryption and decryption using either RSA key pairs or password-based encryption. It now supports **all file types**, including text files, media files (e.g., images, videos), and office documents (e.g., XLS, DOCX, PDF).
+File Encryptor is a powerful command-line tool written in Go that provides secure file encryption and decryption using either RSA key pairs or password-based encryption. It features a modern web UI and supports all file types, including text files, media files, and office documents.
 
 ## Features
 
+### Core Encryption Features
 - Encrypt files using RSA public keys or passwords
 - Decrypt files using RSA private keys or passwords
 - Hybrid encryption: RSA for key exchange, AES for file content
 - Support for both PEM and OpenSSH format keys
 - Automatically preserve and restore the original file extensions
-- Detailed logging for transparency and debugging
-- Support for **all file types**: text, images (JPG, PNG), videos, spreadsheets, and more
-- **Concurrent processing** with worker pool for faster encryption and decryption of multiple files
-- **Graceful cancellation** with timeout support and signal handling (Ctrl+C)
-- Robust command-line interface with improved multi-file handling
+- Support for all file types: text, images, videos, spreadsheets, and more
+- Concurrent processing with worker pool for faster encryption and decryption of multiple files
+- Graceful cancellation with timeout support and signal handling (Ctrl+C)
 
-**File Support Note**:
-- The tool supports all file types, including:
-  - **Text**: TXT, CSV, JSON
-  - **Media**: JPG, PNG, MP4
-  - **Documents**: DOCX, PDF, XLS
-  - **Others**: Any other binary file format.
-
-Example usage ensures seamless encryption and decryption without data corruption.
+### Web UI Features
+- Modern web interface with drag-and-drop file support
+- Real-time progress tracking and status updates
+- Responsive design for desktop, tablet, and mobile devices
+- Dark/light theme toggle with preference persistence
+- Batch file operations with drag & drop
+- RSA key pair generation directly in the browser
+- Secure REST API with CORS support and security headers
+- Single binary deployment with embedded web assets
 
 ## Installation
 
-1. Ensure you have Go installed on your system (version 1.23 or later).
-   - Verify with:
-     ```bash
-     go version
-     ```
+### Prerequisites
+- Go 1.23 or later
+- Git
 
-2. Clone this repository:
+### Build from Source
+1. Clone this repository:
    ```bash
-   git clone https://github.com/sd416/file-encryptor.git
-   ```
-
-3. Navigate to the project directory:
-   ```bash
+   git clone https://github.com/yourusername/file-encryptor.git
    cd file-encryptor
    ```
 
-4. Build the project:
+2. Build the CLI version:
    ```bash
-   go build -o file-encryptor cmd/file-encryptor/main.go
+   make build
+   ```
+
+3. Build with Web UI support:
+   ```bash
+   make build-web
    ```
 
 ## Usage
 
-### Key Generation Options
+### Web UI Mode
+
+Start the web server:
 ```bash
-# Default key generation
-./file-encryptor --generate-keys
+# Start web UI on default port 8080
+./bin/file-encryptor-web --web
+
+# Start on custom port
+./bin/file-encryptor-web --web --web-port 9000
+
+# Start with HTTPS
+./bin/file-encryptor-web --web --web-tls --cert-file cert.pem --key-file key.pem
+```
+
+Then open your browser to `http://localhost:8080` for the web interface.
+
+#### Web UI Features:
+- **Drag & Drop**: Simply drag files onto the interface
+- **Encrypt/Decrypt**: Choose password or key file authentication
+- **Generate Keys**: Create RSA key pairs and download them
+- **Progress Tracking**: Real-time status updates
+- **Theme Toggle**: Switch between dark and light modes
+- **Mobile Friendly**: Responsive design for all devices
+
+### Command Line Interface
+
+#### Key Generation
+```bash
+# Generate RSA key pair
+./bin/file-encryptor --generate-keys
+
+# Generate keys with custom name
+./bin/file-encryptor --generate-keys --key-name mykey
+
 # Generate and encrypt in one step
-./file-encryptor --generate-keys -e -f document.pdf
+./bin/file-encryptor --generate-keys -e -f document.pdf
 ```
 
-### Encryption
+#### Encryption
 
-#### Encrypt a file using an RSA public key:
+**Using RSA public key:**
 ```bash
-./file-encryptor -e --file <input_file> --key <public_key_file>
-# or using short flags
-./file-encryptor -e -f <input_file> -k <public_key_file>
+./bin/file-encryptor -e --file picture.jpg --key my_ssh_key.pub
+# Output: picture.jpg.enc
 ```
-Example:
+
+**Using password:**
 ```bash
-./file-encryptor -e --file picture.jpg --key my_ssh_key.pub
-# or
-./file-encryptor -e -f picture.jpg -k my_ssh_key.pub
+./bin/file-encryptor -e --file document.pdf --password myStrongPassword123
+# Output: document.pdf.enc
 ```
-- The encrypted file will be saved as `picture.jpg.enc`.
 
-#### Encrypt a file using a password:
+**Multiple files:**
 ```bash
-./file-encryptor -e --file <input_file> --password <your_password>
-# or using short flags
-./file-encryptor -e -f <input_file> -p <your_password>
+./bin/file-encryptor -e --password myPassword123 --file file1.txt file2.jpg file3.pdf
 ```
-Example:
+
+#### Decryption
+
+**Using RSA private key:**
 ```bash
-./file-encryptor -e --file document.pdf --password myStrongPassword123
-# or
-./file-encryptor -e -f document.pdf -p myStrongPassword123
+./bin/file-encryptor -d --file picture.jpg.enc --key my_ssh_key
+# Output: picture.jpg (original extension restored)
 ```
-#### Encrypt multiple files:
 
-Example:
+**Using password:**
 ```bash
-./file-encryptor -e --password myStrongPassword123 --file file1 file2 file3
-# or
-./file-encryptor -e -p myStrongPassword123 -f file1 file2 file3
+./bin/file-encryptor -d --file document.pdf.enc --password myStrongPassword123
+# Output: document.pdf
 ```
----
 
-### Decryption
+#### Advanced Options
 
-#### Decrypt a file using an RSA private key:
+**Set operation timeout:**
 ```bash
-./file-encryptor -d --file <encrypted_file> --key <private_key_file>
-# or using short flags
-./file-encryptor -d -f <encrypted_file> -k <private_key_file>
+./bin/file-encryptor -e -f large_file.mp4 -p myPassword --timeout 10m
 ```
-Example:
+
+**Verbose logging:**
 ```bash
-./file-encryptor -d --file picture.jpg.enc --key my_ssh_key
-# or
-./file-encryptor -d -f picture.jpg.enc -k my_ssh_key
+./bin/file-encryptor -e -f file.txt -p password --verbose
 ```
-- The decrypted file will retain its original extension (e.g., `picture.jpg`).
 
-#### Decrypt a file using a password:
+**Configuration file:**
 ```bash
-./file-encryptor -d --file <encrypted_file> --password <your_password>
-# or using short flags
-./file-encryptor -d -f <encrypted_file> -p <your_password>
+./bin/file-encryptor -e -f file.txt -p password --config custom-config.yaml
 ```
-Example:
+
+## Development
+
+### Build Targets
 ```bash
-./file-encryptor -d --file document.pdf.enc --password myStrongPassword123
-# or
-./file-encryptor -d -f document.pdf.enc -p myStrongPassword123
+make build          # Build CLI version
+make build-web      # Build with web UI
+make test           # Run tests
+make lint           # Run linters
+make clean          # Clean build artifacts
+make dev-setup      # Setup development environment
 ```
 
-### Additional Options
-
-#### Setting a timeout:
-You can set a maximum time for the operation to complete with the timeout flag:
-```bash
-./file-encryptor -e -f large_file.mp4 -p myPassword --timeout 10m
+### Project Structure
 ```
-Supported time units: s (seconds), m (minutes), h (hours)
+file-encryptor/
+├── cmd/file-encryptor/     # Main application
+├── pkg/                    # Core packages
+│   ├── crypto/            # Encryption logic
+│   ├── logging/           # Logging utilities
+│   └── webapi/            # Web API components
+├── web/                   # Web UI assets
+│   ├── templates/         # HTML templates
+│   └── static/           # CSS, JS, images
+├── Makefile              # Build automation
+└── README.md            # This file
+```
 
----
+## Security
 
-## Security Notes
+### Encryption Standards
+- **AES-256-GCM** for file encryption (authenticated encryption)
+- **RSA-4096** for key exchange (configurable key size)
+- **PBKDF2** with SHA-256 for password-based key derivation
+- **HMAC-SHA-256** for integrity verification
+- **Secure random** number generation for all cryptographic operations
 
-- Always use strong, unique passwords for password-based encryption.
-- Keep your private keys secure and never share them.
-- This tool uses:
-  - **AES-256** for file encryption (symmetric encryption).
-  - **RSA** for secure key exchange (asymmetric encryption).
-  - **PBKDF2** for key derivation in password-based encryption.
-  - HMAC for integrity verification.
-- File extensions are preserved automatically during encryption and restored after decryption.
+### Web Security
+- **CORS Protection** with configurable origins
+- **Security Headers** (CSP, HSTS, X-Frame-Options)
+- **File Size Limits** to prevent DoS attacks
+- **Path Traversal Protection** for static file serving
+- **HTTPS Support** with TLS 1.2+ enforcement
 
-## Performance Features
+### Best Practices
+- Always use strong, unique passwords (12+ characters)
+- Keep private keys secure and never share them
+- Use HTTPS in production environments
+- Regularly update to the latest version
+- Backup important files before encryption
 
-- **Concurrent Processing**: The tool uses a worker pool to process multiple files in parallel
-- **Cancellation Support**: All operations can be safely cancelled with Ctrl+C
-- **Resource Management**: The program automatically limits concurrency based on the number of files
+## Supported File Types
+
+The tool supports all file types, including:
+- **Text**: TXT, CSV, JSON, XML, YAML
+- **Images**: JPG, PNG, GIF, BMP, TIFF, SVG
+- **Videos**: MP4, AVI, MOV, MKV, WebM
+- **Audio**: MP3, WAV, FLAC, AAC
+- **Documents**: PDF, DOCX, XLSX, PPTX
+- **Archives**: ZIP, TAR, 7Z, RAR
+- **Code**: JS, Python, Go, Java, C++
+- **Any other binary or text file**
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Guidelines
+- Follow Go best practices and conventions
+- Add tests for new functionality
+- Update documentation as needed
+- Ensure all tests pass before submitting
 
 ## License
 
@@ -162,6 +221,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Disclaimer
 
-This tool is provided as-is, without any warranties. Always ensure you have backups of your important files before encryption.
+This tool is provided as-is, without any warranties. Always ensure you have backups of your important files before encryption. Test the tool with non-critical files first to ensure it meets your requirements.
 
----
+## Support
+
+- **Documentation**: Check this README and inline help (`--help`)
+- **Issues**: Report bugs via GitHub Issues
+- **Feature Requests**: Submit enhancement ideas via GitHub Issues
+- **Security**: Report security issues privately via email

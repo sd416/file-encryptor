@@ -1,0 +1,75 @@
+name: Go
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ["1.22", "1.23", "1.24"]
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v5.4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build CLI version
+        run: |
+          go build -ldflags "-X main.Version=ci -X main.GitCommit=${GITHUB_SHA::8} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o file-encryptor cmd/file-encryptor/main.go cmd/file-encryptor/cli.go cmd/file-encryptor/config.go cmd/file-encryptor/handlers.go cmd/file-encryptor/web_stub.go
+          chmod +x file-encryptor
+
+      - name: Build Web UI version
+        run: |
+          go build -tags web -ldflags "-X main.Version=ci -X main.GitCommit=${GITHUB_SHA::8} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o file-encryptor-web cmd/file-encryptor/main.go cmd/file-encryptor/cli.go cmd/file-encryptor/config.go cmd/file-encryptor/handlers.go cmd/file-encryptor/web.go
+          chmod +x file-encryptor-web
+
+      - name: Run unit tests
+        run: go test -v ./...
+
+      - name: Test basic functionality
+        run: |
+          # Test version commands
+          ./file-encryptor --version
+          ./file-encryptor-web --version
+          
+          # Test key generation
+          ./file-encryptor --generate-keys --key-name test_key
+          
+          # Test basic encryption/decryption
+          echo "test content" > test.txt
+          ./file-encryptor -e -f test.txt -p "password123"
+          rm test.txt
+          ./file-encryptor -d -f test.txt.enc -p "password123"
+          
+          # Verify content
+          if [ "$(cat test.txt)" != "test content" ]; then
+            echo "Content verification failed"
+            exit 1
+          fi
+          
+          echo "All tests passed!"
+
+      - name: Cleanup
+        run: |
+          rm -f test.txt test.txt.enc test_key_*

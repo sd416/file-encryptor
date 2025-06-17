@@ -1,0 +1,29 @@
+# File Encryptor Configuration
+# This file contains default settings for the file encryptor tool
+
+# Core performance settings
+max_workers: 4              # Maximum number of concurrent workers
+chunk_size: 65536           # Chunk size in bytes (64KB)
+default_timeout: "30m"      # Default operation timeout
+
+# Logging configuration
+log_level: "info"           # Log level: debug, info, warn, error
+log_format: "text"          # Log format: text or json
+enable_debug: false         # Enable debug mode with caller information
+
+# Security settings
+key_size: 4096              # RSA key size in bits
+default_key_name: "key"     # Default base name for generated keys
+
+# Performance tuning
+buffer_size: 65536          # Buffer size for file operations (64KB)
+enable_progress_bar: true   # Show progress bars for operations
+enable_metrics: false       # Enable detailed performance metrics
+adaptive_worker_count: true # Automatically adjust worker count based on workload
+
+# Example environment variable overrides:
+# FILE_ENCRYPTOR_LOG_LEVEL=debug
+# FILE_ENCRYPTOR_MAX_WORKERS=8
+# FILE_ENCRYPTOR_TIMEOUT=1h
+# FILE_ENCRYPTOR_DEBUG=true
+# FILE_ENCRYPTOR_LOG_FORMAT=json

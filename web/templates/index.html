@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Encryptor - Secure File Encryption</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
+</head>
+<body>
+    <div class="app-container" id="app">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <span class="icon">🔐</span>
+                    File Encryptor
+                </h1>
+                <div class="header-controls">
+                    <button id="theme-toggle" class="btn-icon" title="Toggle theme">
+                        <span class="theme-icon">🌙</span>
+                    </button>
+                    <button id="config-btn" class="btn-icon" title="Configuration">
+                        <span>⚙️</span>
+                    </button>
+                    <button id="status-btn" class="btn-icon" title="Server status">
+                        <span>📊</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- File Drop Zone -->
+            <section class="drop-zone" id="dropZone">
+                <div class="drop-content">
+                    <div class="drop-icon">📁</div>
+                    <h3>Drop files here or click to select</h3>
+                    <p>Supports multiple files, drag & drop</p>
+                    <input type="file" id="fileInput" multiple hidden>
+                    <button class="btn-primary" id="selectFilesBtn">Select Files</button>
+                </div>
+                <div class="drop-overlay" id="dropOverlay">
+                    <div class="drop-message">
+                        <div class="drop-icon-large">📁</div>
+                        <h3>Drop files to encrypt/decrypt</h3>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Selected Files Display -->
+            <section class="files-section" id="filesSection" style="display: none;">
+                <h3>Selected Files</h3>
+                <div class="file-list" id="fileList"></div>
+                <button class="btn-secondary" id="clearFilesBtn">Clear All</button>
+            </section>
+
+            <!-- Operation Panel -->
+            <section class="operation-panel" id="operationPanel" style="display: none;">
+                <div class="operation-tabs">
+                    <button class="tab-btn active" data-tab="encrypt" id="encryptTab">
+                        <span class="tab-icon">🔒</span>
+                        Encrypt
+                    </button>
+                    <button class="tab-btn" data-tab="decrypt" id="decryptTab">
+                        <span class="tab-icon">🔓</span>
+                        Decrypt
+                    </button>
+                    <button class="tab-btn" data-tab="keys" id="keysTab">
+                        <span class="tab-icon">🔑</span>
+                        Generate Keys
+                    </button>
+                </div>
+
+                <!-- Encrypt Tab -->
+                <div class="tab-content active" id="encrypt-content">
+                    <div class="form-group">
+                        <label for="encrypt-method">Authentication Method:</label>
+                        <select id="encrypt-method" class="form-select">
+                            <option value="password">Password</option>
+                            <option value="key">Public Key</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="encrypt-password-group">
+                        <label for="encrypt-password">Password:</label>
+                        <input type="password" id="encrypt-password" class="form-input" placeholder="Enter password">
+                        <button type="button" class="btn-toggle-password" id="toggle-encrypt-password">👁️</button>
+                    </div>
+                    
+                    <div class="form-group hidden" id="encrypt-key-group">
+                        <label for="encrypt-key-file">Public Key File:</label>
+                        <input type="file" id="encrypt-key-file" class="form-input" accept=".key,.pem,.pub">
+                    </div>
+                    
+                    <button class="btn-primary btn-large" id="startEncryptBtn">
+                        <span class="btn-icon">🔒</span>
+                        Start Encryption
+                    </button>
+                </div>
+
+                <!-- Decrypt Tab -->
+                <div class="tab-content" id="decrypt-content">
+                    <div class="form-group">
+                        <label for="decrypt-method">Authentication Method:</label>
+                        <select id="decrypt-method" class="form-select">
+                            <option value="password">Password</option>
+                            <option value="key">Private Key</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="decrypt-password-group">
+                        <label for="decrypt-password">Password:</label>
+                        <input type="password" id="decrypt-password" class="form-input" placeholder="Enter password">
+                        <button type="button" class="btn-toggle-password" id="toggle-decrypt-password">👁️</button>
+                    </div>
+                    
+                    <div class="form-group hidden" id="decrypt-key-group">
+                        <label for="decrypt-key-file">Private Key File:</label>
+                        <input type="file" id="decrypt-key-file" class="form-input" accept=".key,.pem">
+                    </div>
+                    
+                    <button class="btn-primary btn-large" id="startDecryptBtn">
+                        <span class="btn-icon">🔓</span>
+                        Start Decryption
+                    </button>
+                </div>
+
+                <!-- Keys Tab -->
+                <div class="tab-content" id="keys-content">
+                    <div class="form-group">
+                        <label for="key-name">Key Name:</label>
+                        <input type="text" id="key-name" class="form-input" placeholder="my-key" value="key">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="key-size">Key Size:</label>
+                        <select id="key-size" class="form-select">
+                            <option value="2048">2048 bits</option>
+                            <option value="4096" selected>4096 bits</option>
+                            <option value="8192">8192 bits</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn-primary btn-large" id="generateKeysBtn">
+                        <span class="btn-icon">🔑</span>
+                        Generate RSA Keys
+                    </button>
+                </div>
+            </section>
+
+            <!-- Progress Section -->
+            <section class="progress-section hidden" id="progressSection">
+                <div class="progress-header">
+                    <h3 id="operationTitle">Processing Files...</h3>
+                    <div class="progress-stats">
+                        <span id="progressPercent">0%</span>
+                        <span id="progressFiles">0/0 files</span>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="current-file" id="currentFile"></div>
+                <button class="btn-secondary" id="cancelOperationBtn">Cancel</button>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section hidden" id="resultsSection">
+                <div class="results-header">
+                    <h3 id="resultsTitle">Operation Complete</h3>
+                    <div class="results-summary" id="resultsSummary"></div>
+                </div>
+                <div class="file-results" id="fileResults"></div>
+                <div class="results-actions">
+                    <button class="btn-primary" id="downloadAllBtn">Download All</button>
+                    <button class="btn-secondary" id="newOperationBtn">New Operation</button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <div class="status-item">
+                <span class="status-label">Status:</span>
+                <span class="status-value" id="connectionStatus">Connected</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Server:</span>
+                <span class="status-value" id="serverVersion">v1.0.0</span>
+            </div>
+        </footer>
+
+        <!-- Modals -->
+        <div class="modal-overlay hidden" id="modalOverlay">
+            <div class="modal" id="configModal">
+                <div class="modal-header">
+                    <h3>Configuration</h3>
+                    <button class="btn-close" id="closeConfigModal">×</button>
+                </div>
+                <div class="modal-content">
+                    <div class="config-grid" id="configGrid">
+                        <!-- Configuration items will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal" id="statusModal">
+                <div class="modal-header">
+                    <h3>Server Status</h3>
+                    <button class="btn-close" id="closeStatusModal">×</button>
+                </div>
+                <div class="modal-content">
+                    <div class="status-grid" id="statusGrid">
+                        <!-- Status items will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div class="toast-container" id="toastContainer"></div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

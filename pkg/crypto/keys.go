@@ -1,17 +1,17 @@
 package crypto
 
 import (
-    "crypto/rand"
-    "crypto/rsa"
-    "crypto/sha256"
-    "crypto/x509"
-    "encoding/pem"
-    "fmt"
-    "os"
-    "time"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
+	"os"
+	"time"
 
-    "file-encryptor/pkg/logging"
-    "golang.org/x/crypto/ssh"
+	"file-encryptor/pkg/logging"
+	"golang.org/x/crypto/ssh"
 )
 
 type RSAEncryptor struct {
@@ -37,7 +37,6 @@ func NewRSADecryptor(keyFile string) (*RSADecryptor, error) {
 	}
 	return &RSADecryptor{privateKey: privKey}, nil
 }
-
 
 func loadPublicKey(filename string) (*rsa.PublicKey, error) {
 	keyData, err := os.ReadFile(filename)
@@ -94,7 +93,6 @@ func loadPrivateKey(filename string) (*rsa.PrivateKey, error) {
 	return rsaKey, nil
 }
 
-
 func (e *RSAEncryptor) EncryptKey(key []byte) ([]byte, error) {
 	return rsa.EncryptOAEP(sha256.New(), rand.Reader, e.publicKey, key, nil)
 }
@@ -103,85 +101,84 @@ func (d *RSADecryptor) DecryptKey(encryptedKey []byte) ([]byte, error) {
 	return rsa.DecryptOAEP(sha256.New(), rand.Reader, d.privateKey, encryptedKey, nil)
 }
 
-
 func GenerateRSAKeyPair(baseFileName string, logger *logging.Logger) error {
-    privateKeyName, publicKeyName, err := GenerateRSAKeyPairWithNames(baseFileName, logger)
-    if err != nil {
-        return err
-    }
-    logger.LogInfof("Private Key: %s", privateKeyName)
-    logger.LogInfof("Public Key: %s", publicKeyName)
-    return nil
+	privateKeyName, publicKeyName, err := GenerateRSAKeyPairWithNames(baseFileName, logger)
+	if err != nil {
+		return err
+	}
+	logger.LogInfof("Private Key: %s", privateKeyName)
+	logger.LogInfof("Public Key: %s", publicKeyName)
+	return nil
 }
 
 func GenerateRSAKeyPairWithNames(baseFileName string, logger *logging.Logger) (string, string, error) {
-    logger.LogDebug("Generating RSA key pair")
+	logger.LogDebug("Generating RSA key pair")
 	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
-		return "","", fmt.Errorf("failed to generate private key: %w", err)
+		return "", "", fmt.Errorf("failed to generate private key: %w", err)
 	}
 
 	publicKey := &privateKey.PublicKey
-    logger.LogDebug("RSA key pair generated successfully")
-    timestamp := time.Now().Format("20060102150405")
-    privateKeyName := fmt.Sprintf("%s_private_%s.key", baseFileName, timestamp)
-    publicKeyName := fmt.Sprintf("%s_public_%s.pub", baseFileName, timestamp)
+	logger.LogDebug("RSA key pair generated successfully")
+	timestamp := time.Now().Format("20060102150405")
+	privateKeyName := fmt.Sprintf("%s_private_%s.key", baseFileName, timestamp)
+	publicKeyName := fmt.Sprintf("%s_public_%s.pub", baseFileName, timestamp)
 	// Save private key in OpenSSH format
 	if err := savePrivateKeyOpenSSH(privateKey, privateKeyName, logger); err != nil {
-		return "","", fmt.Errorf("failed to save private key (OpenSSH): %w", err)
+		return "", "", fmt.Errorf("failed to save private key (OpenSSH): %w", err)
 	}
 
 	// Save public key in OpenSSH format
-    if err := savePublicKeyOpenSSH(publicKey, publicKeyName, logger); err != nil {
-		return "","", fmt.Errorf("failed to save public key (OpenSSH): %w", err)
+	if err := savePublicKeyOpenSSH(publicKey, publicKeyName, logger); err != nil {
+		return "", "", fmt.Errorf("failed to save public key (OpenSSH): %w", err)
 	}
 	return privateKeyName, publicKeyName, nil
 }
 
 func savePrivateKeyOpenSSH(privateKey *rsa.PrivateKey, filename string, logger *logging.Logger) error {
-    logger.LogDebug("Saving private key in OpenSSH format")
+	logger.LogDebug("Saving private key in OpenSSH format")
 
-    // Convert the private key to OpenSSH format
-    privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
+	// Convert the private key to OpenSSH format
+	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
 
-    // Create PEM block
-    pemBlock := &pem.Block{
-        Type:  "RSA PRIVATE KEY",
-        Bytes: privateKeyBytes,
-    }
+	// Create PEM block
+	pemBlock := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privateKeyBytes,
+	}
 
-    // Encode to PEM format
-    pemBytes := pem.EncodeToMemory(pemBlock)
-    if pemBytes == nil {
-        return fmt.Errorf("failed to encode private key to PEM format")
-    }
+	// Encode to PEM format
+	pemBytes := pem.EncodeToMemory(pemBlock)
+	if pemBytes == nil {
+		return fmt.Errorf("failed to encode private key to PEM format")
+	}
 
-    // Write the private key with restricted permissions
-    err := os.WriteFile(filename, pemBytes, 0600)
-    if err != nil {
-        return fmt.Errorf("failed to write private key file: %w", err)
-    }
+	// Write the private key with restricted permissions
+	err := os.WriteFile(filename, pemBytes, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write private key file: %w", err)
+	}
 
-    logger.LogDebugf("Private key saved to: %s", filename)
-    return nil
+	logger.LogDebugf("Private key saved to: %s", filename)
+	return nil
 }
 
 func savePublicKeyOpenSSH(publicKey *rsa.PublicKey, filename string, logger *logging.Logger) error {
-    logger.LogDebug("Saving public key in OpenSSH format")
+	logger.LogDebug("Saving public key in OpenSSH format")
 	sshPublicKey, err := ssh.NewPublicKey(publicKey)
-    if err != nil {
-        return fmt.Errorf("failed to create ssh public key: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("failed to create ssh public key: %w", err)
+	}
 
-    pubKeyBytes := ssh.MarshalAuthorizedKey(sshPublicKey)
-    if err != nil {
-        return fmt.Errorf("failed to marshal public key to OpenSSH format: %w", err)
-    }
+	pubKeyBytes := ssh.MarshalAuthorizedKey(sshPublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to marshal public key to OpenSSH format: %w", err)
+	}
 
-    err = os.WriteFile(filename, pubKeyBytes, 0644)
-    if err != nil {
-        return fmt.Errorf("failed to write public key file: %w", err)
-    }
-    logger.LogDebugf("Public key in OpenSSH format saved to: %s", filename)
-    return nil
+	err = os.WriteFile(filename, pubKeyBytes, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write public key file: %w", err)
+	}
+	logger.LogDebugf("Public key in OpenSSH format saved to: %s", filename)
+	return nil
 }
