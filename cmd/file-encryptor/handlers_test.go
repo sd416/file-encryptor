@@ -310,11 +310,8 @@ func TestFormatBytesInHandlers(t *testing.T) {
 
 func TestContextCancellation(t *testing.T) {
 	// Test context cancellation in handlers
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
-	defer cancel()
-
-	// Wait for context to be cancelled
-	time.Sleep(2 * time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately to ensure context is cancelled
 
 	args := &CLIArgs{
 		GenerateKeys: true,
@@ -326,12 +323,12 @@ func TestContextCancellation(t *testing.T) {
 
 	err := HandleGenerateKeys(ctx, args, config, logger)
 	if err == nil {
-		t.Errorf("Expected timeout error, got nil")
+		t.Errorf("Expected cancellation error, got nil")
 	}
 
-	// Should be a context deadline exceeded error
-	if err != context.DeadlineExceeded && err != context.Canceled {
-		t.Errorf("Expected context error, got: %v", err)
+	// Should be a context cancelled error
+	if err != context.Canceled {
+		t.Errorf("Expected context.Canceled, got: %v", err)
 	}
 }
 
