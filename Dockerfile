@@ -1,5 +1,5 @@
 # Multi-stage build for optimal image size
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install git for version information
 RUN apk add --no-cache git
